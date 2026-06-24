@@ -391,17 +391,46 @@ func _draw_warped_skyline(day: float) -> void:
 
 
 func _draw_playfield() -> void:
-	# DNF-like perspective floor: movement is horizontal plus a shallow depth lane.
+	# Wet cyberpunk street: dark asphalt that catches a neon sheen toward the
+	# front, a shallow DNF-style depth lane, and ground decals in perspective.
+	var tint := _stage_light()
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(0, 164), Vector2(480, 164), Vector2(480, 270), Vector2(0, 270)
-	]), Color("11172a"))
-	for y in [178, 198, 221, 247]:
-		draw_line(Vector2(0, y), Vector2(480, y), Color(0.14, 0.17, 0.28, 0.55), 1)
-	for x in range(-20, 520, 48):
-		draw_line(Vector2(240 + (x - 240) * 0.45, 164), Vector2(x, 270), Color(0.12, 0.15, 0.25, 0.5), 1)
-	# Walkable depth band edges are indicated through wear rather than UI rails.
-	draw_line(Vector2(0, 173), Vector2(480, 173), Color(0.25, 0.24, 0.37, 0.55), 2)
+	]), Color("0b1020"))
+	for i in range(9):
+		var t := float(i) / 8.0
+		var y := 164.0 + t * 106.0
+		draw_rect(Rect2(0, y, 480, 14), Color(tint.r, tint.g, tint.b, 0.012 + 0.04 * t))
+	for y in [180, 200, 224, 250]:
+		draw_line(Vector2(0, y), Vector2(480, y), Color(0.15, 0.18, 0.29, 0.4), 1)
+	for x in range(-20, 520, 56):
+		draw_line(Vector2(240 + (x - 240) * 0.45, 164), Vector2(x, 270), Color(0.12, 0.15, 0.26, 0.35), 1)
+	draw_line(Vector2(0, 173), Vector2(480, 173), Color(0.25, 0.24, 0.37, 0.5), 2)
 	draw_line(Vector2(0, 235), Vector2(480, 235), Color("080b17"), 3)
+	_draw_ground_decals(tint)
+
+
+func _draw_ground_decals(tint: Color) -> void:
+	# Manhole covers (dark, ribbed) and neon-catching puddles set into the street.
+	for mh in [Vector2(150, 250), Vector2(372, 242)]:
+		draw_ellipse(mh, 15, 5.5, Color(0.2, 0.22, 0.3))
+		draw_ellipse(mh, 13, 4.5, Color("0a0e1a"))
+		for gx in range(-9, 10, 4):
+			draw_line(mh + Vector2(gx, -3), mh + Vector2(gx, 3), Color(0.16, 0.18, 0.26, 0.7), 1)
+	for pd in [Vector2(92, 256), Vector2(252, 261), Vector2(420, 251)]:
+		draw_ellipse(pd, 24, 5, Color(tint.r, tint.g, tint.b, 0.06))
+		draw_ellipse(pd, 15, 3, Color(tint.r, tint.g, tint.b, 0.1))
+		draw_ellipse(pd, 7, 1.4, Color(1, 1, 1, 0.06))
+	# Faded hazard paint and a couple of cracks for wear.
+	for i in range(5):
+		var hx := 404.0 + i * 11.0
+		if i % 2 == 0:
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(hx, 230), Vector2(hx + 7, 230), Vector2(hx + 1, 241), Vector2(hx - 6, 241)
+			]), Color(0.85, 0.62, 0.22, 0.16))
+	for c in [Vector2(205, 243), Vector2(312, 257)]:
+		draw_line(c, c + Vector2(15, 4), Color(0, 0, 0, 0.32), 1)
+		draw_line(c + Vector2(6, 2), c + Vector2(11, -3), Color(0, 0, 0, 0.26), 1)
 
 
 func _draw_arcade() -> void:
