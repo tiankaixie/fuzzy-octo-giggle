@@ -253,10 +253,43 @@ func _draw() -> void:
 		"transit": _draw_transit()
 		"foundry": _draw_foundry()
 		_: _draw_arcade()
+	_draw_god_rays()
 	_draw_room_variant()
 	_draw_playfield()
+	_draw_floor_reflection()
 	_draw_room_navigation()
 	_draw_atmosphere()
+
+
+func _stage_light() -> Color:
+	match stage_id:
+		"transit": return Color(0.4, 0.7, 0.95)
+		"foundry": return Color(1.0, 0.55, 0.25)
+		_: return Color(0.95, 0.4, 0.7)
+
+
+func _draw_god_rays() -> void:
+	# Volumetric light shafts slanting down from off-screen sources.
+	var tint := _stage_light()
+	for i in range(5):
+		var x := 40.0 + i * 104.0 + sin(ambience_time * 0.3 + i) * 5.0
+		var sway := sin(ambience_time * 0.5 + i * 1.3) * 0.06
+		var a := 0.02 + 0.012 * sin(ambience_time * 0.8 + i * 2.0)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(x, 18), Vector2(x + 26, 18),
+			Vector2(x - 36 + sway * 60.0, 168), Vector2(x - 70 + sway * 60.0, 168),
+		]), Color(tint, maxf(0.0, a)))
+
+
+func _draw_floor_reflection() -> void:
+	# Wet-floor sheen + mirrored neon smear on the walkable plane.
+	var tint := _stage_light()
+	draw_rect(Rect2(0, 164, 480, 24), Color(tint, 0.04))
+	for i in range(9):
+		var x := 24.0 + i * 52.0 + sin(ambience_time * 0.6 + i) * 3.0
+		var h := 22.0 + (i % 3) * 8.0
+		draw_rect(Rect2(x, 168, 2, h), Color(tint, 0.05))
+		draw_rect(Rect2(x, 168, 1, h * 0.6), Color(tint, 0.05))
 
 
 func _draw_room_variant() -> void:
