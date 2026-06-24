@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/room_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "airlock"
+display_name = "Surface Airlock"
+short_name = "SURFACE"
+accent_color = Color(0.31, 0.792, 0.82, 1)
+build_cost = 0
+upgrade_cost = 0
+max_level = 1
+description = "The permanent connection between home and the outer district."
+

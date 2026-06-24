@@ -1,13 +1,21 @@
 class_name CyberPlayer
 extends CharacterBody2D
 
+const CharacterFramesClass := preload("res://scripts/art/character_frames.gd")
+
 enum ViewMode { SIDE, TOP_DOWN, BEAT_EM_UP }
+
+# Licensed CraftPix cyberpunk sprite (OGA-BY 3.0, see assets/.../CREDITS.md).
+const CHARACTER_ID := "biker"
+const SPRITE_OFFSET := Vector2(0, -20)
 
 var view_mode := ViewMode.SIDE
 var speed := 66.0
 var motion_time := 0.0
 var facing := 1.0
 var movement_enabled := true
+var sprite: AnimatedSprite2D
+var current_anim := ""
 
 
 func setup(mode: ViewMode) -> void:
@@ -34,6 +42,36 @@ func _ready() -> void:
 		capsule.height = 12.0
 	shape.shape = capsule
 	add_child(shape)
+
+	if view_mode != ViewMode.TOP_DOWN:
+		sprite = AnimatedSprite2D.new()
+		sprite.sprite_frames = CharacterFramesClass.get_frames(CHARACTER_ID)
+		sprite.centered = true
+		sprite.offset = SPRITE_OFFSET
+		add_child(sprite)
+		current_anim = "idle"
+		sprite.play("idle")
+
+
+func _process(_delta: float) -> void:
+	_update_anim()
+
+
+# Desired animation for the current state; combat subclass adds attack/hurt poses.
+func _desired_anim() -> String:
+	if velocity.length() > 4.0:
+		return "run"
+	return "idle"
+
+
+func _update_anim() -> void:
+	if sprite == null:
+		return
+	sprite.flip_h = facing < 0
+	var want := _desired_anim()
+	if want != current_anim:
+		current_anim = want
+		sprite.play(want)
 
 
 func _physics_process(delta: float) -> void:
@@ -65,32 +103,9 @@ func _draw() -> void:
 
 
 func _draw_side() -> void:
-	var walking := velocity.length() > 4.0
-	var bob := roundi(sin(motion_time) * 1.0) if walking else 0
-	var step := roundi(sin(motion_time) * 2.0) if walking else 0
-
-	# Soft, chunky pixel shadow.
-	draw_rect(Rect2(-7, -1, 14, 3), Color(0.02, 0.02, 0.05, 0.55))
-	# Legs and boots.
-	draw_rect(Rect2(-5, -8 + bob, 4, 8 + step), Color("25314d"))
-	draw_rect(Rect2(1, -8 + bob, 4, 8 - step), Color("36486a"))
-	draw_rect(Rect2(-6, -2 + step, 5, 3), Color("0c1123"))
-	draw_rect(Rect2(1, -2 - step, 6, 3), Color("0c1123"))
-	# Coat and backpack silhouette.
-	draw_rect(Rect2(-7, -20 + bob, 13, 13), Color("17233d"))
-	draw_rect(Rect2(-9 if facing < 0 else 5, -19 + bob, 4, 10), Color("34264c"))
-	draw_rect(Rect2(-6, -18 + bob, 12, 3), Color("41597b"))
-	# Head, hood, and cyan optical implant.
-	draw_rect(Rect2(-5, -28 + bob, 10, 9), Color("111a30"))
-	draw_rect(Rect2(-4, -27 + bob, 8, 7), Color("ad6f68"))
-	draw_rect(Rect2(-5, -28 + bob, 9, 3), Color("263756"))
-	var eye_x := 2.0 if facing > 0 else -4.0
-	draw_rect(Rect2(eye_x, -24 + bob, 3, 2), Color("50f6e3"))
-	draw_rect(Rect2(eye_x + facing, -24 + bob, 2, 2), Color(0.31, 0.96, 0.88, 0.28))
-	# Orange cybernetic forearm.
-	var arm_x := 6.0 if facing > 0 else -9.0
-	draw_rect(Rect2(arm_x, -17 + bob, 3, 8), Color("f08a5d"))
-	draw_rect(Rect2(arm_x, -11 + bob, 4, 2), Color("ffd166"))
+	# Body is an AnimatedSprite2D child now; only the contact shadow is drawn here.
+	_draw_oval(Vector2(0, 3), Vector2(9, 3.2), Color(0.01, 0.02, 0.05, 0.55))
+	_draw_oval(Vector2(0, 3), Vector2(6, 2.2), Color(0.0, 0.01, 0.03, 0.4))
 
 
 func _draw_top_down() -> void:

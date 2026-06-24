@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "elite"
+display_name = "Warden-9"
+archetype = 2
+max_health = 145.0
+move_speed = 31.0
+damage = 18.0
+attack_range = 30.0
+attack_cooldown = 1.7
+knockback_force = 48.0
+loot_value = 28
+body_color = Color(0.35, 0.24, 0.2, 1)
+glow_color = Color(1, 0.45, 0.25, 1)
+

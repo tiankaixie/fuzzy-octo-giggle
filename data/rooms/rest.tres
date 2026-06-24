@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/room_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "rest"
+display_name = "Rest Quarters"
+short_name = "REST"
+accent_color = Color(0.914, 0.631, 0.373, 1)
+build_cost = 20
+upgrade_cost = 14
+max_level = 3
+description = "Warm private quarters that improve recovery between expeditions."
+

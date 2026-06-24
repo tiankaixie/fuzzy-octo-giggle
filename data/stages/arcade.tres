@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="StageDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/stage_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "arcade"
+display_name = "NEON MARKET"
+sector = "SECTOR 12-A"
+description = "Derelict arcades and a drowned noodle district."
+risk = "LOW"
+recommended_level = "LV.01"
+accent_color = Color(0.922, 0.353, 0.635, 1)
+map_position = Vector2(116, 145)
+room_names = Array[String](["MARKET GATE", "GAME HALL", "NEON CORE"])
+room_codes = Array[String](["12-A1", "12-A2", "12-A3"])
+room_waves = Array[String](["melee,melee", "melee,ranged", "elite,ranged"])
+clear_bonus = 32
+

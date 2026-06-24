@@ -3,39 +3,9 @@ extends Node2D
 signal stage_selected(stage_id: String)
 signal transition_requested(target: String)
 
-const STAGES := [
-	{
-		"id": "arcade",
-		"name": "NEON MARKET",
-		"sector": "SECTOR 12-A",
-		"description": "Derelict arcades and a drowned noodle district.",
-		"risk": "LOW",
-		"recommended": "LV.01",
-		"color": Color("eb5aa2"),
-		"position": Vector2(116, 145),
-	},
-	{
-		"id": "transit",
-		"name": "FLOODED LINE",
-		"sector": "SECTOR 12-B",
-		"description": "A silent maglev line below the acid water table.",
-		"risk": "MED",
-		"recommended": "LV.03",
-		"color": Color("58d6cc"),
-		"position": Vector2(245, 104),
-	},
-	{
-		"id": "foundry",
-		"name": "SIGNAL FOUNDRY",
-		"sector": "SECTOR 12-C",
-		"description": "An industrial signal root that never went offline.",
-		"risk": "HIGH",
-		"recommended": "LV.05",
-		"color": Color("ee7868"),
-		"position": Vector2(374, 147),
-	},
-]
+const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 
+var stages: Array = []
 var selected_index := 0
 var hover_index := -1
 var ambience_time := 0.0
@@ -44,6 +14,7 @@ var launching := false
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("050818"))
+	stages = ContentRegistryClass.stages()
 
 
 func _process(delta: float) -> void:
@@ -82,12 +53,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func select_index(index: int) -> void:
-	selected_index = wrapi(index, 0, STAGES.size())
+	selected_index = wrapi(index, 0, stages.size())
 
 
 func select_stage(id: String) -> bool:
-	for i in range(STAGES.size()):
-		if STAGES[i].id == id:
+	for i in range(stages.size()):
+		if stages[i].id == id:
 			selected_index = i
 			return true
 	return false
@@ -97,7 +68,7 @@ func launch_selected() -> void:
 	if launching:
 		return
 	launching = true
-	stage_selected.emit(str(STAGES[selected_index].id))
+	stage_selected.emit(stages[selected_index].id)
 
 
 func return_home() -> void:
@@ -108,8 +79,8 @@ func return_home() -> void:
 
 
 func _stage_at(point: Vector2) -> int:
-	for i in range(STAGES.size()):
-		if point.distance_to(STAGES[i].position) < 28.0:
+	for i in range(stages.size()):
+		if point.distance_to(stages[i].map_position) < 28.0:
 			return i
 	return -1
 
@@ -155,8 +126,8 @@ func _draw_city_map() -> void:
 func _draw_routes() -> void:
 	# Routes are verified signal corridors rather than a linear obligation.
 	var home := Vector2(28, 188)
-	draw_polyline(PackedVector2Array([home, Vector2(70, 170), STAGES[0].position, Vector2(180, 129), STAGES[1].position, Vector2(310, 122), STAGES[2].position]), Color("34455f"), 3)
-	draw_polyline(PackedVector2Array([home, Vector2(70, 170), STAGES[0].position, Vector2(180, 129), STAGES[1].position, Vector2(310, 122), STAGES[2].position]), Color(0.33, 0.83, 0.8, 0.18), 1)
+	draw_polyline(PackedVector2Array([home, Vector2(70, 170), stages[0].map_position, Vector2(180, 129), stages[1].map_position, Vector2(310, 122), stages[2].map_position]), Color("34455f"), 3)
+	draw_polyline(PackedVector2Array([home, Vector2(70, 170), stages[0].map_position, Vector2(180, 129), stages[1].map_position, Vector2(310, 122), stages[2].map_position]), Color(0.33, 0.83, 0.8, 0.18), 1)
 	for p in [Vector2(70, 170), Vector2(180, 129), Vector2(310, 122)]:
 		draw_circle(p, 3, Color("476178"))
 	# Home marker.
@@ -167,10 +138,10 @@ func _draw_routes() -> void:
 
 
 func _draw_stage_nodes() -> void:
-	for i in range(STAGES.size()):
-		var stage: Dictionary = STAGES[i]
-		var pos: Vector2 = stage.position
-		var color: Color = stage.color
+	for i in range(stages.size()):
+		var stage: StageDefinition = stages[i]
+		var pos: Vector2 = stage.map_position
+		var color: Color = stage.accent_color
 		var selected := i == selected_index
 		var pulse := 0.55 + sin(ambience_time * 4.0 + i) * 0.2
 		if selected:
@@ -180,7 +151,7 @@ func _draw_stage_nodes() -> void:
 		# Each node is a tiny landmark silhouette.
 		draw_circle(pos, 14, Color("0a1020"))
 		draw_circle(pos, 12, Color(color, 0.2 if selected else 0.1))
-		match str(stage.id):
+		match stage.id:
 			"arcade":
 				draw_rect(Rect2(pos - Vector2(8, 5), Vector2(16, 12)), Color("34223e"))
 				draw_rect(Rect2(pos - Vector2(6, 3), Vector2(12, 3)), color)
@@ -192,19 +163,19 @@ func _draw_stage_nodes() -> void:
 				draw_circle(pos, 8, Color("243745"))
 				draw_circle(pos, 4, color)
 				draw_line(pos + Vector2(0, -12), pos + Vector2(0, -7), color, 2)
-		_label(str(stage.sector), pos + Vector2(-23, 25), color if selected else Color("697184"), 6)
+		_label(stage.sector, pos + Vector2(-23, 25), color if selected else Color("697184"), 6)
 
 
 func _draw_selection_panel() -> void:
-	var stage: Dictionary = STAGES[selected_index]
-	var color: Color = stage.color
+	var stage: StageDefinition = stages[selected_index]
+	var color: Color = stage.accent_color
 	draw_rect(Rect2(0, 203, 480, 67), Color("080b17"))
 	draw_rect(Rect2(0, 203, 480, 2), Color(color, 0.7))
 	draw_rect(Rect2(103, 214, 252, 44), Color("101426"))
 	draw_rect(Rect2(103, 214, 3, 44), color)
-	_label(str(stage.name), Vector2(115, 230), color, 9)
-	_label(str(stage.description), Vector2(115, 243), Color("8f91a3"), 6)
-	_label("RISK " + str(stage.risk) + "  //  " + str(stage.recommended), Vector2(115, 254), Color("c7a374"), 6)
+	_label(stage.display_name, Vector2(115, 230), color, 9)
+	_label(stage.description, Vector2(115, 243), Color("8f91a3"), 6)
+	_label("RISK " + stage.risk + "  //  " + stage.recommended_level, Vector2(115, 254), Color("c7a374"), 6)
 	# Home and deploy buttons.
 	_button(Rect2(14, 231, 78, 26), "‹ HOME", Color("58c9c8"), false)
 	_button(Rect2(372, 231, 94, 26), "DEPLOY ›", color, true)

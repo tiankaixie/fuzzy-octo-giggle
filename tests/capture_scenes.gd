@@ -31,25 +31,40 @@ func _run() -> void:
 	game._show_world("dungeon")
 	await process_frame
 	await process_frame
-	await create_timer(0.15).timeout
+	await create_timer(0.35).timeout
+	game.current_world.player.position = Vector2(228, 207)
+	var combat_enemies := get_nodes_in_group("enemies")
+	for i in range(combat_enemies.size()):
+		combat_enemies[i].position = Vector2(300 + i * 54, 201 - i * 13)
+	await process_frame
 	_capture("/tmp/cyber_dungeon.png")
 	game.current_world.room_index = 1
+	game.current_world.battle_hud.set_room(1)
+	game.current_world._spawn_room_wave()
 	await process_frame
 	await process_frame
-	await create_timer(0.08).timeout
+	await create_timer(0.2).timeout
 	_capture("/tmp/cyber_dungeon_transit.png")
-	game.current_world.room_index = 2
-	game.current_world.battle_hud.set_room(2)
+	game.current_world.debug_clear_room()
+	await create_timer(0.3, true, false, true).timeout
+	game.current_world.battle_hud.show_results("STAGE CLEAR", 144)
 	await process_frame
 	await process_frame
 	await create_timer(0.08).timeout
-	_capture("/tmp/cyber_dungeon_final_room.png")
+	_capture("/tmp/cyber_stage_clear.png")
 
+	Engine.time_scale = 1.0
 	game.selected_stage_id = "foundry"
 	game._show_world("dungeon")
 	await process_frame
 	await process_frame
 	await create_timer(0.12).timeout
+	game.current_world.room_index = 2
+	game.current_world.battle_hud.set_room(2)
+	game.current_world._spawn_room_wave()
+	await process_frame
+	await process_frame
+	await create_timer(0.16).timeout
 	_capture("/tmp/cyber_dungeon_foundry.png")
 	quit(0)
 

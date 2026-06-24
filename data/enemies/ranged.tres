@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ranged"
+display_name = "Arc Spitter"
+archetype = 1
+max_health = 40.0
+move_speed = 29.0
+damage = 8.0
+attack_range = 118.0
+attack_cooldown = 1.5
+knockback_force = 22.0
+loot_value = 11
+body_color = Color(0.2, 0.35, 0.39, 1)
+glow_color = Color(0.31, 0.89, 0.79, 1)
+
