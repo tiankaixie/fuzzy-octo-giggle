@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/room_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "commons"
+display_name = "Commons"
+short_name = "COMMON"
+accent_color = Color(0.941, 0.435, 0.384, 1)
+build_cost = 24
+upgrade_cost = 16
+max_level = 3
+description = "A shared table, radio and kitchen for bunker residents."
+

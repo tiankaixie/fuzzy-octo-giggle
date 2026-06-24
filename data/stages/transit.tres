@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="StageDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/stage_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "transit"
+display_name = "FLOODED LINE"
+sector = "SECTOR 12-B"
+description = "A silent maglev line below the acid water table."
+risk = "MED"
+recommended_level = "LV.03"
+accent_color = Color(0.345, 0.839, 0.8, 1)
+map_position = Vector2(245, 104)
+room_names = Array[String](["TICKET HALL", "FLOODED PLATFORM", "TRAIN WRECK"])
+room_codes = Array[String](["12-B1", "12-B2", "12-B3"])
+room_waves = Array[String](["melee,ranged", "melee,melee,ranged", "elite,ranged,ranged"])
+clear_bonus = 48
+

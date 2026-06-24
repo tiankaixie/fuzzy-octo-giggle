@@ -2,24 +2,24 @@ class_name BunkerRoom
 extends Node2D
 
 const SIZE := Vector2(68, 58)
+const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 
 var room_type := "rest"
+var definition: RoomDefinition
+var level := 1
 var connected_left := false
 var connected_right := false
 var room_time := 0.0
+var above_ground := false
+var window_col := 0
+var city_texture: Texture2D
+var city_day_texture: Texture2D
+var world_time := 0.0
 
-const COLORS := {
-	"rest": Color("e9a15f"),
-	"commons": Color("f06f62"),
-	"grow": Color("d75cb2"),
-	"workshop": Color("8062d1"),
-	"power": Color("55c9b8"),
-	"airlock": Color("4fcad1"),
-}
-
-
-func setup(type: String, joins_left: bool, joins_right: bool) -> void:
+func setup(type: String, joins_left: bool, joins_right: bool, room_level := 1) -> void:
 	room_type = type
+	definition = ContentRegistryClass.room(type)
+	level = room_level
 	connected_left = joins_left
 	connected_right = joins_right
 	queue_redraw()
@@ -31,8 +31,10 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var accent: Color = COLORS.get(room_type, Color.WHITE)
+	var accent: Color = definition.accent_color if definition else Color.WHITE
 	_draw_shell(accent)
+	if above_ground and city_texture:
+		_draw_city_window()
 	match room_type:
 		"rest": _draw_rest(accent)
 		"commons": _draw_commons(accent)
@@ -46,24 +48,57 @@ func _draw_shell(accent: Color) -> void:
 	var glow := accent
 	glow.a = 0.07
 	draw_rect(Rect2(-2 if connected_left else 1, 1, 72 if connected_left and connected_right else 69 if connected_left or connected_right else 66, 55), glow)
-	draw_rect(Rect2(2, 3, 64, 52), Color("111528"))
-	draw_rect(Rect2(3, 4, 62, 50), Color(accent, 0.055))
+	# Back wall base with a soft top-down ambient gradient for interior depth.
+	draw_rect(Rect2(2, 3, 64, 52), Color("0e1326"))
+	draw_rect(Rect2(3, 4, 62, 50), Color("151b32"))
+	for i in range(7):
+		draw_rect(Rect2(3, 4 + i * 2, 62, 2), Color(0.0, 0.0, 0.0, 0.17 - i * 0.024))
+	draw_rect(Rect2(3, 4, 62, 50), Color(accent, 0.05))
+	# Riveted wall panels read as a built structure rather than a flat box.
+	for seam_y in [18, 31]:
+		draw_rect(Rect2(4, seam_y, 60, 1), Color(0.0, 0.0, 0.0, 0.22))
+		draw_rect(Rect2(4, seam_y + 1, 60, 1), Color(1.0, 1.0, 1.0, 0.03))
+	for seam_x in [23, 45]:
+		draw_rect(Rect2(seam_x, 5, 1, 39), Color(0.0, 0.0, 0.0, 0.12))
+	for rx in [7, 28, 49, 61]:
+		draw_rect(Rect2(rx, 14, 1, 1), Color(accent, 0.35))
+		draw_rect(Rect2(rx, 27, 1, 1), Color(accent, 0.28))
+	# Light pool spilling from the ceiling strip.
+	draw_colored_polygon(PackedVector2Array([Vector2(7, 10), Vector2(29, 10), Vector2(36, 44), Vector2(0, 44)]), Color(accent, 0.045))
+	# Recessed floor plate with lit leading edge and worn scuffs.
+	draw_rect(Rect2(3, 45, 62, 9), Color("0b0f1f"))
+	draw_rect(Rect2(3, 44, 62, 1), Color(accent, 0.22))
+	draw_rect(Rect2(3, 45, 62, 1), Color(1.0, 1.0, 1.0, 0.045))
+	for fx in range(8, 62, 13):
+		draw_rect(Rect2(fx, 49, 7, 1), Color(1.0, 1.0, 1.0, 0.022))
+	# Corner ambient occlusion deepens the recess.
+	for corner in [Vector2(3, 4), Vector2(57, 4), Vector2(3, 47), Vector2(57, 47)]:
+		for s in range(3):
+			var ax: float = corner.x if corner.x < 30 else corner.x + (5 - s)
+			var ay: float = corner.y if corner.y < 30 else corner.y + (5 - s)
+			draw_rect(Rect2(ax, ay, 5 - s, 5 - s), Color(0.0, 0.0, 0.0, 0.10))
 	draw_rect(Rect2(2, 3, 64, 3), Color(accent, 0.38))
 	draw_rect(Rect2(2, 52, 64, 3), Color("3c3b51"))
 	if connected_left:
-		draw_rect(Rect2(-2, 6, 7, 46), Color("111528"))
+		draw_rect(Rect2(-2, 6, 7, 46), Color("0e1326"))
 		draw_rect(Rect2(-2, 6, 7, 2), Color(accent, 0.3))
 	else:
 		draw_rect(Rect2(1, 3, 3, 52), Color("4b485d"))
+		draw_rect(Rect2(4, 4, 1, 50), Color(0.0, 0.0, 0.0, 0.22))
 	if connected_right:
-		draw_rect(Rect2(63, 6, 7, 46), Color("111528"))
+		draw_rect(Rect2(63, 6, 7, 46), Color("0e1326"))
 		draw_rect(Rect2(63, 6, 7, 2), Color(accent, 0.3))
 	else:
 		draw_rect(Rect2(64, 3, 3, 52), Color("4b485d"))
-	# Ceiling strip light; neighboring cells read as one longer room.
+		draw_rect(Rect2(63, 4, 1, 50), Color(0.0, 0.0, 0.0, 0.22))
+	# Ceiling strip light with a brighter hot core; neighbors read as one room.
 	draw_rect(Rect2(8, 8, 20, 2), Color(accent, 0.88))
+	draw_rect(Rect2(10, 8, 14, 1), Color(1.0, 1.0, 1.0, 0.5))
 	if connected_right:
 		draw_rect(Rect2(31, 8, 35, 2), Color(accent, 0.5))
+	if room_type != "airlock":
+		for i in range(level):
+			draw_rect(Rect2(59 - i * 5, 11, 3, 2), accent)
 
 
 func _draw_rest(accent: Color) -> void:
@@ -159,6 +194,29 @@ func _draw_airlock(accent: Color) -> void:
 	draw_rect(Rect2(55, 29, 5, 11), Color("283848"))
 	draw_rect(Rect2(57, 31, 2, 2), accent)
 	_label("SURFACE", Vector2(12, 11), accent, 6)
+
+
+func _draw_city_window() -> void:
+	# Above-ground rooms look out onto the skyline; the slice is offset per column
+	# so the view reads as one continuous city across the top floor.
+	var wx := 7.0
+	var wy := 12.0
+	var ww := 54.0
+	var wh := 21.0
+	var src_x := clampf(86.0 + float(window_col) * 56.0, 0.0, float(city_texture.get_width()) - 156.0)
+	var src := Rect2(src_x, 66, 156, 78)
+	var dest := Rect2(wx, wy, ww, wh)
+	var day := 0.5 + 0.5 * sin(world_time * 0.057)
+	draw_texture_rect_region(city_texture, dest, src, Color(0.72, 0.74, 0.88))
+	if city_day_texture and day > 0.01:
+		draw_texture_rect_region(city_day_texture, dest, src, Color(0.95, 0.92, 0.88, day))
+	draw_rect(Rect2(wx, wy, ww, wh), Color(0.42, 0.6, 0.82, 0.05))
+	draw_line(Vector2(wx + 4, wy + 3), Vector2(wx + 17, wy + wh - 2), Color(0.7, 0.8, 0.95, 0.06), 2)
+	draw_rect(Rect2(wx + ww / 2.0 - 1.0, wy, 2, wh), Color("23263a"))
+	draw_rect(Rect2(wx, wy + wh / 2.0 - 1.0, ww, 2), Color("23263a"))
+	draw_rect(Rect2(wx, wy, ww, wh), Color("262a3e"), false, 2)
+	draw_rect(Rect2(wx - 1, wy + wh, ww + 2, 3), Color("3a3d54"))
+	draw_rect(Rect2(wx - 1, wy + wh, ww + 2, 1), Color("525873"))
 
 
 func _glow(center: Vector2, color: Color, radius: float) -> void:

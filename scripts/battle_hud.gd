@@ -3,25 +3,23 @@ extends CanvasLayer
 
 const HOTKEYS := ["J", "K", "L", "U", "I", "O", "P", ";"]
 const KEYCODES := [KEY_J, KEY_K, KEY_L, KEY_U, KEY_I, KEY_O, KEY_P, KEY_SEMICOLON]
-const STAGE_NAMES := {
-	"arcade": "NEON MARKET",
-	"transit": "FLOODED LINE",
-	"foundry": "SIGNAL FOUNDRY",
-}
-const STAGE_COLORS := {
-	"arcade": Color("eb5aa2"),
-	"transit": Color("58d6cc"),
-	"foundry": Color("ee7868"),
-}
+const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 
 var canvas: Node2D
 var stage_id := "arcade"
+var stage_definition: StageDefinition
 var room_index := 0
 var room_count := 3
 var hp := 100.0
 var energy := 76.0
+var combo_count := 0
 var skill_flash := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 var hud_time := 0.0
+var banner_text := ""
+var banner_time := 0.0
+var result_visible := false
+var result_title := ""
+var result_loot := 0
 
 
 func _ready() -> void:
@@ -33,6 +31,7 @@ func _ready() -> void:
 
 func configure(id: String, rooms: int) -> void:
 	stage_id = id
+	stage_definition = ContentRegistryClass.stage(id)
 	room_count = rooms
 	if is_instance_valid(canvas):
 		canvas.queue_redraw()
@@ -44,8 +43,32 @@ func set_room(index: int) -> void:
 		canvas.queue_redraw()
 
 
+func set_stats(health: float, current_energy: float, combo: int) -> void:
+	hp = health
+	energy = current_energy
+	combo_count = combo
+
+
+func show_banner(text: String, duration := 1.2) -> void:
+	banner_text = text
+	banner_time = duration
+
+
+func show_results(title: String, loot: int) -> void:
+	result_visible = true
+	result_title = title
+	result_loot = loot
+
+
+func show_defeat() -> void:
+	result_visible = true
+	result_title = "EXPEDITION FAILED"
+	result_loot = 0
+
+
 func _process(delta: float) -> void:
 	hud_time += delta
+	banner_time = maxf(0.0, banner_time - delta)
 	for i in range(skill_flash.size()):
 		skill_flash[i] = maxf(0.0, skill_flash[i] - delta * 3.4)
 	canvas.queue_redraw()
@@ -56,13 +79,49 @@ func _input(event: InputEvent) -> void:
 		var slot := KEYCODES.find(event.keycode)
 		if slot >= 0:
 			skill_flash[slot] = 1.0
-			energy = maxf(0.0, energy - (2.0 + slot * 0.7))
 
 
 func _draw_hud() -> void:
-	var accent: Color = STAGE_COLORS.get(stage_id, Color("58d6cc"))
+	var accent: Color = stage_definition.accent_color if stage_definition else Color("58d6cc")
 	_draw_minimap(accent)
 	_draw_bottom_frame(accent)
+	if combo_count > 1:
+		_draw_combo(accent)
+	if banner_time > 0.0:
+		_draw_banner(accent)
+	if result_visible:
+		_draw_results(accent)
+
+
+func _draw_combo(accent: Color) -> void:
+	var pulse := 1.0 + sin(hud_time * 12.0) * 0.04
+	canvas.draw_set_transform(Vector2(335, 205), 0.0, Vector2(pulse, pulse))
+	_label(str(combo_count) + " HIT", Vector2.ZERO, accent.lightened(0.25), 14)
+	_label("CHAIN", Vector2(2, 10), Color("d4ced9"), 6)
+	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+func _draw_banner(accent: Color) -> void:
+	var alpha := minf(1.0, banner_time * 2.0)
+	canvas.draw_rect(Rect2(152, 83, 176, 28), Color(0.02, 0.025, 0.065, 0.82 * alpha))
+	canvas.draw_rect(Rect2(152, 83, 176, 28), Color(accent, alpha), false, 1)
+	_label(banner_text, Vector2(187, 101), Color(accent, alpha), 10)
+
+
+func _draw_results(accent: Color) -> void:
+	canvas.draw_rect(Rect2(0, 0, 480, 226), Color(0.015, 0.02, 0.055, 0.72))
+	canvas.draw_rect(Rect2(91, 53, 298, 121), Color("0c1022"))
+	canvas.draw_rect(Rect2(91, 53, 298, 121), accent, false, 2)
+	canvas.draw_rect(Rect2(91, 53, 298, 5), accent)
+	_label(result_title, Vector2(139, 79), accent.lightened(0.2), 14)
+	if result_loot > 0:
+		_label("RECOVERED SALVAGE", Vector2(177, 103), Color("a7a5b2"), 7)
+		canvas.draw_rect(Rect2(191, 112, 19, 19), Color(accent, 0.18))
+		canvas.draw_rect(Rect2(195, 116, 11, 11), accent)
+		_label("+" + str(result_loot), Vector2(218, 127), Color("f1c36f"), 16)
+		_label("PRESS ENTER // RETURN TO BUNKER", Vector2(145, 153), Color("8bded7"), 7)
+	else:
+		_label("PRESS ENTER // RETURN TO MAP", Vector2(154, 137), Color("d67b83"), 7)
 
 
 func _draw_minimap(accent: Color) -> void:

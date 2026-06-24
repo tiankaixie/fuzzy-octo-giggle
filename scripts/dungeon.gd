@@ -1,45 +1,62 @@
 extends Node2D
 
 signal transition_requested(target: String)
+signal stage_completed(stage_id: String, loot: int)
 
-const PlayerClass := preload("res://scripts/player.gd")
+const PlayerClass := preload("res://scripts/combat/combat_player.gd")
+const EnemyClass := preload("res://scripts/combat/combat_enemy.gd")
+const ProjectileClass := preload("res://scripts/combat/combat_projectile.gd")
+const CombatAudioClass := preload("res://scripts/combat/combat_audio.gd")
 const BattleHUDClass := preload("res://scripts/battle_hud.gd")
-const STAGE_DATA := {
-	"arcade": {
-		"name": "NEON MARKET",
-		"rooms": ["MARKET GATE", "GAME HALL", "NEON CORE"],
-		"codes": ["12-A1", "12-A2", "12-A3"],
-	},
-	"transit": {
-		"name": "FLOODED LINE",
-		"rooms": ["TICKET HALL", "FLOODED PLATFORM", "TRAIN WRECK"],
-		"codes": ["12-B1", "12-B2", "12-B3"],
-	},
-	"foundry": {
-		"name": "SIGNAL FOUNDRY",
-		"rooms": ["LOADING BAY", "SIGNAL CORE", "ROOT CHAMBER"],
-		"codes": ["12-C1", "12-C2", "12-C3"],
-	},
-}
+const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
+const CITY_BG_PATH := "res://assets/backgrounds/city.png"
+const CITY_DAY_PATH := "res://assets/backgrounds/city_day.png"
 
-var player: CyberPlayer
+var city_texture: Texture2D
+var city_day_texture: Texture2D
+var world_time := 0.0
+var player: CombatPlayer
 var foreground: Node2D
 var transition_layer: CanvasLayer
 var room_wipe: ColorRect
 var battle_hud: BattleHUD
 var stage_id := "arcade"
+var stage_definition: StageDefinition
+var combat_audio: CombatAudio
+var combat_camera: Camera2D
 var room_index := 0
 var ambience_time := 0.0
 var room_transitioning := false
 var transition_sent := false
+var cleared_rooms: Dictionary = {}
+var remaining_enemies := 0
+var total_loot := 0
+var shake_strength := 0.0
+var hitstop_generation := 0
+var result_state := ""
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("050819"))
+	if ResourceLoader.exists(CITY_BG_PATH):
+		city_texture = load(CITY_BG_PATH)
+	if ResourceLoader.exists(CITY_DAY_PATH):
+		city_day_texture = load(CITY_DAY_PATH)
+	stage_definition = ContentRegistryClass.stage(stage_id)
 	player = PlayerClass.new()
 	player.setup(CyberPlayer.ViewMode.BEAT_EM_UP)
 	player.position = Vector2(78, 211)
 	add_child(player)
+	player.sfx_requested.connect(_play_sfx)
+	player.impact_requested.connect(_on_impact)
+	player.died.connect(_on_player_died)
+
+	combat_audio = CombatAudioClass.new()
+	add_child(combat_audio)
+	combat_camera = Camera2D.new()
+	combat_camera.position = Vector2(240, 135)
+	combat_camera.enabled = true
+	add_child(combat_camera)
 
 	foreground = Node2D.new()
 	foreground.z_index = 250
@@ -49,20 +66,26 @@ func _ready() -> void:
 	battle_hud = BattleHUDClass.new()
 	add_child(battle_hud)
 	battle_hud.configure(stage_id, _room_count())
+	_spawn_room_wave()
 
 
 func _process(delta: float) -> void:
 	ambience_time += delta
+	shake_strength = maxf(0.0, shake_strength - delta * 25.0)
+	combat_camera.offset = Vector2(randf_range(-shake_strength, shake_strength), randf_range(-shake_strength * 0.55, shake_strength * 0.55)) if shake_strength > 0.1 else Vector2.ZERO
 	player.position.y = clampf(player.position.y, 174.0, 222.0)
 	player.position.x = clampf(player.position.x, 8.0, 472.0)
 	player.z_index = 20 + int(player.position.y)
 
-	if not room_transitioning and not transition_sent:
+	battle_hud.set_stats(player.health, player.energy, player.combo_hits)
+	if not room_transitioning and not transition_sent and result_state == "":
 		if player.position.x >= 468.0:
-			if room_index < _room_count() - 1:
+			if not cleared_rooms.get(room_index, false):
+				player.position.x = 462.0
+			elif room_index < _room_count() - 1:
 				_change_room(1)
 			else:
-				player.position.x = 462.0
+				_complete_stage()
 		elif player.position.x <= 12.0:
 			if room_index > 0:
 				_change_room(-1)
@@ -73,6 +96,14 @@ func _process(delta: float) -> void:
 
 	queue_redraw()
 	foreground.queue_redraw()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ENTER:
+		if result_state == "clear":
+			stage_completed.emit(stage_id, total_loot + stage_definition.clear_bonus)
+		elif result_state == "defeat":
+			transition_requested.emit("map")
 
 
 func _build_room_wipe() -> void:
@@ -87,8 +118,7 @@ func _build_room_wipe() -> void:
 
 
 func _room_count() -> int:
-	var data: Dictionary = STAGE_DATA.get(stage_id, STAGE_DATA.arcade)
-	return data.rooms.size()
+	return stage_definition.room_names.size()
 
 
 func _change_room(direction: int) -> void:
@@ -100,6 +130,7 @@ func _change_room(direction: int) -> void:
 	room_index += direction
 	battle_hud.set_room(room_index)
 	player.position = Vector2(25 if direction > 0 else 455, 211)
+	_spawn_room_wave()
 	queue_redraw()
 	foreground.queue_redraw()
 	var fade_in := create_tween()
@@ -107,6 +138,82 @@ func _change_room(direction: int) -> void:
 	await fade_in.finished
 	player.movement_enabled = true
 	room_transitioning = false
+
+
+func _spawn_room_wave() -> void:
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(enemy):
+			enemy.queue_free()
+	remaining_enemies = 0
+	if cleared_rooms.get(room_index, false):
+		return
+	var ids := stage_definition.room_waves[room_index].split(",", false)
+	var positions := [Vector2(327, 205), Vector2(389, 184), Vector2(280, 218), Vector2(421, 214)]
+	for i in range(ids.size()):
+		var definition := ContentRegistryClass.enemy(ids[i].strip_edges())
+		if definition == null:
+			continue
+		var enemy: CombatEnemy = EnemyClass.new()
+		enemy.setup(definition, player, positions[i % positions.size()])
+		enemy.defeated.connect(_on_enemy_defeated)
+		enemy.projectile_requested.connect(_spawn_projectile)
+		enemy.attack_connected.connect(_on_impact)
+		enemy.sfx_requested.connect(_play_sfx)
+		add_child(enemy)
+		remaining_enemies += 1
+	battle_hud.show_banner("HOSTILES // " + str(remaining_enemies), 0.9)
+
+
+func _spawn_projectile(origin: Vector2, direction: Vector2, damage: float, knockback: float, color: Color) -> void:
+	var projectile: CombatProjectile = ProjectileClass.new()
+	projectile.setup(origin, direction, player, damage, knockback, color)
+	add_child(projectile)
+
+
+func _on_enemy_defeated(_enemy: CombatEnemy, loot: int) -> void:
+	total_loot += loot
+	remaining_enemies = maxi(0, remaining_enemies - 1)
+	shake_strength = maxf(shake_strength, 7.0)
+	if remaining_enemies == 0:
+		cleared_rooms[room_index] = true
+		battle_hud.show_banner("ROOM CLEAR", 1.5)
+		_play_sfx("clear")
+		_on_impact(8.0, 0.07)
+
+
+func _complete_stage() -> void:
+	if result_state != "":
+		return
+	result_state = "clear"
+	player.movement_enabled = false
+	player.velocity = Vector2.ZERO
+	_play_sfx("clear")
+	battle_hud.show_results("STAGE CLEAR", total_loot + stage_definition.clear_bonus)
+
+
+func _on_player_died() -> void:
+	result_state = "defeat"
+	battle_hud.show_defeat()
+
+
+func _play_sfx(id: String) -> void:
+	combat_audio.play_sfx(id)
+
+
+func _on_impact(strength: float, duration: float) -> void:
+	shake_strength = maxf(shake_strength, strength)
+	hitstop_generation += 1
+	var generation := hitstop_generation
+	Engine.time_scale = 0.08
+	await get_tree().create_timer(duration, true, false, true).timeout
+	if generation == hitstop_generation:
+		Engine.time_scale = 1.0
+
+
+func debug_clear_room() -> void:
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(enemy):
+			enemy.take_damage(9999.0, player.position, 0.0)
 
 
 func _draw() -> void:
@@ -139,17 +246,29 @@ func _draw_room_variant() -> void:
 
 
 func _draw_sky_and_depth() -> void:
-	draw_rect(Rect2(0, 0, 480, 270), Color("050819"))
-	# Distant city silhouettes establish a side-on horizon.
-	draw_rect(Rect2(0, 27, 480, 142), Color("081126"))
-	for i in range(18):
-		var width := 18 + (i * 11) % 24
-		var height := 28 + (i * 19) % 68
-		var x := i * 31 - 18
-		draw_rect(Rect2(x, 169 - height, width, height), Color("0d1530"))
-		if i % 3 != 0:
-			draw_rect(Rect2(x + 5, 177 - height, 2, 3), Color(0.22, 0.53, 0.65, 0.23))
-	# Smog bands and a broken magenta skyline glow.
+	# Shared day/night clock so a stage matches the time you deployed at.
+	var day := 0.5 + 0.5 * sin(world_time * 0.057)
+	draw_rect(Rect2(0, 0, 480, 270), Color("050819").lerp(Color("2b3650"), day * 0.8))
+	draw_rect(Rect2(0, 27, 480, 142), Color("081126").lerp(Color("303c58"), day * 0.7))
+	# Distant city skyline (licensed CraftPix bg) tinted per stage mood, with the
+	# night and day variants crossfading behind the stage's midground structures.
+	if city_texture:
+		var tint := Color(0.5, 0.45, 0.6, 0.85)
+		match stage_id:
+			"arcade": tint = Color(0.54, 0.47, 0.64, 0.95)
+			"transit": tint = Color(0.34, 0.43, 0.5, 0.68)
+			"foundry": tint = Color(0.52, 0.39, 0.4, 0.66)
+		var dest := Rect2(0, 18, 480, 152)
+		draw_texture_rect(city_texture, dest, false, tint)
+		if city_day_texture and day > 0.01:
+			draw_texture_rect(city_day_texture, dest, false, Color(0.95, 0.92, 0.88, tint.a * day))
+	else:
+		for i in range(18):
+			var width := 18 + (i * 11) % 24
+			var height := 28 + (i * 19) % 68
+			var x := i * 31 - 18
+			draw_rect(Rect2(x, 169 - height, width, height), Color("0d1530"))
+	# Smog bands and a horizon line layered over the skyline for depth.
 	draw_rect(Rect2(0, 115, 480, 54), Color(0.13, 0.08, 0.22, 0.18))
 	draw_line(Vector2(0, 168), Vector2(480, 168), Color("3d254c"), 2)
 
@@ -252,6 +371,9 @@ func _draw_foundry() -> void:
 	_draw_side_gate(5, Color("55d1c5"), false)
 	if room_index < _room_count() - 1:
 		_draw_side_gate(449, Color("ee7868"), true)
+	elif cleared_rooms.get(room_index, false):
+		_draw_side_gate(449, Color("68dfce"), true)
+		_label("EXTRACT", Vector2(437, 81), Color("68dfce"), 6)
 	else:
 		# The next sector is visibly sealed; the player can return to the map.
 		draw_rect(Rect2(451, 88, 29, 82), Color("1e2738"))
@@ -277,12 +399,17 @@ func _draw_room_navigation() -> void:
 	else:
 		_label("‹ MAP", Vector2(8, 194), Color(0.45, 0.88, 0.84, pulse), 7)
 	if room_index < _room_count() - 1:
-		_label("›", Vector2(459, 194), Color(0.88, 0.45, 0.66, pulse), 15)
+		if cleared_rooms.get(room_index, false):
+			_label("›", Vector2(459, 194), Color(0.88, 0.45, 0.66, pulse), 15)
+		else:
+			draw_rect(Rect2(458, 171, 4, 53), Color(0.94, 0.33, 0.45, 0.42))
+			_label("LOCK " + str(remaining_enemies), Vector2(431, 194), Color("ef6678"), 6)
+	elif cleared_rooms.get(room_index, false):
+		_label("EXTRACT ›", Vector2(425, 194), Color(0.45, 0.9, 0.82, pulse), 7)
 	# Small diegetic sector plate.
 	draw_rect(Rect2(12, 13, 137, 18), Color(0.03, 0.05, 0.12, 0.82))
 	draw_rect(Rect2(12, 30, 137, 2), Color("4c3c66"))
-	var data: Dictionary = STAGE_DATA[stage_id]
-	_label(str(data.codes[room_index]) + " // " + str(data.rooms[room_index]), Vector2(18, 25), Color("a7a3b8"), 7)
+	_label(stage_definition.room_codes[room_index] + " // " + stage_definition.room_names[room_index], Vector2(18, 25), Color("a7a3b8"), 7)
 
 
 func _draw_atmosphere() -> void:

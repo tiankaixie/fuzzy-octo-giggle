@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RoomDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/room_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "grow"
+display_name = "Hydroponics"
+short_name = "GROW"
+accent_color = Color(0.843, 0.361, 0.698, 1)
+build_cost = 30
+upgrade_cost = 20
+max_level = 3
+description = "Pink-spectrum grow beds that keep the bunker self-sufficient."
+

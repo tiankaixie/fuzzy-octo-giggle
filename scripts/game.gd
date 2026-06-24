@@ -10,6 +10,17 @@ var transition_rect: ColorRect
 var transition_caption: Label
 var transitioning := false
 var selected_stage_id := "arcade"
+var salvage := 160
+var last_loot := 0
+# Persistent time-of-day clock shared across worlds, so deploying from the
+# bunker at night drops you into a night-time stage.
+var world_time := 0.0
+
+
+func _process(delta: float) -> void:
+	world_time += delta
+	if is_instance_valid(current_world) and "world_time" in current_world:
+		current_world.world_time = world_time
 
 
 func _ready() -> void:
@@ -64,16 +75,27 @@ func _show_world(target: String) -> void:
 	if is_instance_valid(current_world):
 		current_world.queue_free()
 	match target:
-		"bunker": current_world = BUNKER_SCENE.instantiate()
+		"bunker":
+			current_world = BUNKER_SCENE.instantiate()
+			current_world.salvage = salvage
+			current_world.last_loot = last_loot
 		"map": current_world = EXPEDITION_MAP_SCENE.instantiate()
 		_:
 			current_world = DUNGEON_SCENE.instantiate()
 			current_world.stage_id = selected_stage_id
+	if "world_time" in current_world:
+		current_world.world_time = world_time
 	add_child(current_world)
 	move_child(current_world, 0)
 	current_world.transition_requested.connect(_on_transition_requested)
 	if current_world.has_signal("stage_selected"):
 		current_world.stage_selected.connect(_on_stage_selected)
+	if current_world.has_signal("stage_completed"):
+		current_world.stage_completed.connect(_on_stage_completed)
+	if current_world.has_signal("salvage_changed"):
+		current_world.salvage_changed.connect(_on_salvage_changed)
+	if target == "bunker":
+		last_loot = 0
 
 
 func _on_stage_selected(stage_id: String) -> void:
@@ -81,9 +103,21 @@ func _on_stage_selected(stage_id: String) -> void:
 	_on_transition_requested("dungeon")
 
 
+func _on_stage_completed(completed_stage_id: String, loot: int) -> void:
+	selected_stage_id = completed_stage_id
+	last_loot = loot
+	salvage += loot
+	_on_transition_requested("bunker")
+
+
+func _on_salvage_changed(value: int) -> void:
+	salvage = value
+
+
 func _on_transition_requested(target: String) -> void:
 	if transitioning:
 		return
+	Engine.time_scale = 1.0
 	transitioning = true
 	current_world.set_process(false)
 	current_world.set_physics_process(false)

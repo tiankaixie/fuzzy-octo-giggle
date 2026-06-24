@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="StageDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/stage_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "foundry"
+display_name = "SIGNAL FOUNDRY"
+sector = "SECTOR 12-C"
+description = "An industrial signal root that never went offline."
+risk = "HIGH"
+recommended_level = "LV.05"
+accent_color = Color(0.933, 0.471, 0.408, 1)
+map_position = Vector2(374, 147)
+room_names = Array[String](["LOADING BAY", "SIGNAL CORE", "ROOT CHAMBER"])
+room_codes = Array[String](["12-C1", "12-C2", "12-C3"])
+room_waves = Array[String](["melee,melee,ranged", "elite,melee", "elite,ranged,ranged"])
+clear_bonus = 70
