@@ -1,0 +1,221 @@
+extends Node2D
+
+signal stage_selected(stage_id: String)
+signal transition_requested(target: String)
+
+const STAGES := [
+	{
+		"id": "arcade",
+		"name": "NEON MARKET",
+		"sector": "SECTOR 12-A",
+		"description": "Derelict arcades and a drowned noodle district.",
+		"risk": "LOW",
+		"recommended": "LV.01",
+		"color": Color("eb5aa2"),
+		"position": Vector2(116, 145),
+	},
+	{
+		"id": "transit",
+		"name": "FLOODED LINE",
+		"sector": "SECTOR 12-B",
+		"description": "A silent maglev line below the acid water table.",
+		"risk": "MED",
+		"recommended": "LV.03",
+		"color": Color("58d6cc"),
+		"position": Vector2(245, 104),
+	},
+	{
+		"id": "foundry",
+		"name": "SIGNAL FOUNDRY",
+		"sector": "SECTOR 12-C",
+		"description": "An industrial signal root that never went offline.",
+		"risk": "HIGH",
+		"recommended": "LV.05",
+		"color": Color("ee7868"),
+		"position": Vector2(374, 147),
+	},
+]
+
+var selected_index := 0
+var hover_index := -1
+var ambience_time := 0.0
+var launching := false
+
+
+func _ready() -> void:
+	RenderingServer.set_default_clear_color(Color("050818"))
+
+
+func _process(delta: float) -> void:
+	ambience_time += delta
+	queue_redraw()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if launching:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_LEFT, KEY_A, KEY_UP, KEY_W:
+				select_index(selected_index - 1)
+			KEY_RIGHT, KEY_D, KEY_DOWN, KEY_S:
+				select_index(selected_index + 1)
+			KEY_ENTER, KEY_SPACE:
+				launch_selected()
+			KEY_ESCAPE, KEY_BACKSPACE:
+				return_home()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion:
+		hover_index = _stage_at(event.position)
+		if hover_index >= 0:
+			selected_index = hover_index
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var hit := _stage_at(event.position)
+		if hit >= 0:
+			selected_index = hit
+			launch_selected()
+		elif Rect2(372, 231, 94, 26).has_point(event.position):
+			launch_selected()
+		elif Rect2(14, 231, 78, 26).has_point(event.position):
+			return_home()
+		get_viewport().set_input_as_handled()
+
+
+func select_index(index: int) -> void:
+	selected_index = wrapi(index, 0, STAGES.size())
+
+
+func select_stage(id: String) -> bool:
+	for i in range(STAGES.size()):
+		if STAGES[i].id == id:
+			selected_index = i
+			return true
+	return false
+
+
+func launch_selected() -> void:
+	if launching:
+		return
+	launching = true
+	stage_selected.emit(str(STAGES[selected_index].id))
+
+
+func return_home() -> void:
+	if launching:
+		return
+	launching = true
+	transition_requested.emit("bunker")
+
+
+func _stage_at(point: Vector2) -> int:
+	for i in range(STAGES.size()):
+		if point.distance_to(STAGES[i].position) < 28.0:
+			return i
+	return -1
+
+
+func _draw() -> void:
+	_draw_city_map()
+	_draw_routes()
+	_draw_stage_nodes()
+	_draw_selection_panel()
+
+
+func _draw_city_map() -> void:
+	draw_rect(Rect2(0, 0, 480, 270), Color("050818"))
+	# Satellite-like sector map with blocky terrain and scan lines.
+	draw_rect(Rect2(0, 31, 480, 172), Color("081229"))
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(0, 72), Vector2(105, 44), Vector2(191, 59), Vector2(244, 39),
+		Vector2(339, 60), Vector2(480, 42), Vector2(480, 203), Vector2(0, 203)
+	]), Color("0b1730"))
+	for x in range(8, 480, 29):
+		for y in range(42, 198, 23):
+			if (x + y) % 4 != 0:
+				var shade := Color(0.08, 0.13, 0.24, 0.58)
+				draw_rect(Rect2(x, y, 17 + (x % 3) * 4, 11 + (y % 2) * 4), shade)
+	# Acid canal splits the old district.
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(0, 176), Vector2(86, 158), Vector2(163, 173), Vector2(237, 149),
+		Vector2(327, 174), Vector2(401, 155), Vector2(480, 169), Vector2(480, 195),
+		Vector2(398, 183), Vector2(326, 198), Vector2(238, 176), Vector2(160, 197),
+		Vector2(83, 181), Vector2(0, 201)
+	]), Color("092433"))
+	for i in range(13):
+		var x := i * 41 + sin(ambience_time + i) * 4.0
+		draw_line(Vector2(x, 181 + i % 2 * 5), Vector2(x + 19, 181 + i % 2 * 5), Color(0.2, 0.69, 0.66, 0.2), 1)
+	# Map scan sweep.
+	var scan_y := 36.0 + fmod(ambience_time * 17.0, 162.0)
+	draw_rect(Rect2(0, scan_y, 480, 2), Color(0.28, 0.74, 0.76, 0.035))
+	draw_rect(Rect2(0, 0, 480, 32), Color("080b19"))
+	_label("OUTER DISTRICT // EXPEDITION ROUTER", Vector2(15, 21), Color("a9a4b7"), 8)
+	_label("CHOOSE A DUNGEON", Vector2(370, 21), Color("58c9c8"), 7)
+
+
+func _draw_routes() -> void:
+	# Routes are verified signal corridors rather than a linear obligation.
+	var home := Vector2(28, 188)
+	draw_polyline(PackedVector2Array([home, Vector2(70, 170), STAGES[0].position, Vector2(180, 129), STAGES[1].position, Vector2(310, 122), STAGES[2].position]), Color("34455f"), 3)
+	draw_polyline(PackedVector2Array([home, Vector2(70, 170), STAGES[0].position, Vector2(180, 129), STAGES[1].position, Vector2(310, 122), STAGES[2].position]), Color(0.33, 0.83, 0.8, 0.18), 1)
+	for p in [Vector2(70, 170), Vector2(180, 129), Vector2(310, 122)]:
+		draw_circle(p, 3, Color("476178"))
+	# Home marker.
+	draw_circle(home, 11, Color("112d3b"))
+	draw_rect(Rect2(home - Vector2(5, 5), Vector2(10, 10)), Color("55d4c9"))
+	draw_rect(Rect2(home - Vector2(2, 8), Vector2(4, 16)), Color("081421"))
+	_label("B-07", Vector2(12, 213), Color("5accc4"), 6)
+
+
+func _draw_stage_nodes() -> void:
+	for i in range(STAGES.size()):
+		var stage: Dictionary = STAGES[i]
+		var pos: Vector2 = stage.position
+		var color: Color = stage.color
+		var selected := i == selected_index
+		var pulse := 0.55 + sin(ambience_time * 4.0 + i) * 0.2
+		if selected:
+			for radius in [28.0, 22.0, 17.0]:
+				draw_circle(pos, radius, Color(color, 0.025 + (28.0 - radius) * 0.004))
+			draw_arc(pos, 25, -PI * 0.5 + ambience_time, PI * 1.1 + ambience_time, 18, Color(color, pulse), 2)
+		# Each node is a tiny landmark silhouette.
+		draw_circle(pos, 14, Color("0a1020"))
+		draw_circle(pos, 12, Color(color, 0.2 if selected else 0.1))
+		match str(stage.id):
+			"arcade":
+				draw_rect(Rect2(pos - Vector2(8, 5), Vector2(16, 12)), Color("34223e"))
+				draw_rect(Rect2(pos - Vector2(6, 3), Vector2(12, 3)), color)
+			"transit":
+				draw_rect(Rect2(pos - Vector2(9, 4), Vector2(18, 9)), Color("213647"))
+				for wx in [-6, 0, 6]:
+					draw_rect(Rect2(pos + Vector2(wx - 2, -2), Vector2(4, 3)), color)
+			"foundry":
+				draw_circle(pos, 8, Color("243745"))
+				draw_circle(pos, 4, color)
+				draw_line(pos + Vector2(0, -12), pos + Vector2(0, -7), color, 2)
+		_label(str(stage.sector), pos + Vector2(-23, 25), color if selected else Color("697184"), 6)
+
+
+func _draw_selection_panel() -> void:
+	var stage: Dictionary = STAGES[selected_index]
+	var color: Color = stage.color
+	draw_rect(Rect2(0, 203, 480, 67), Color("080b17"))
+	draw_rect(Rect2(0, 203, 480, 2), Color(color, 0.7))
+	draw_rect(Rect2(103, 214, 252, 44), Color("101426"))
+	draw_rect(Rect2(103, 214, 3, 44), color)
+	_label(str(stage.name), Vector2(115, 230), color, 9)
+	_label(str(stage.description), Vector2(115, 243), Color("8f91a3"), 6)
+	_label("RISK " + str(stage.risk) + "  //  " + str(stage.recommended), Vector2(115, 254), Color("c7a374"), 6)
+	# Home and deploy buttons.
+	_button(Rect2(14, 231, 78, 26), "‹ HOME", Color("58c9c8"), false)
+	_button(Rect2(372, 231, 94, 26), "DEPLOY ›", color, true)
+	_label("A/D SELECT   ENTER DEPLOY", Vector2(176, 267), Color("545a6c"), 6)
+
+
+func _button(rect: Rect2, text: String, color: Color, active: bool) -> void:
+	draw_rect(rect, Color(color, 0.16 if active else 0.07))
+	draw_rect(rect, color if active else Color("405465"), false, 1)
+	_label(text, rect.position + Vector2(12, 17), color, 7)
+
+
+func _label(text: String, pos: Vector2, color: Color, size := 8) -> void:
+	draw_string(ThemeDB.fallback_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)

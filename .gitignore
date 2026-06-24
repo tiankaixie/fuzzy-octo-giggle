@@ -1,0 +1,6 @@
+# Godot editor cache and imported resources
+.godot/
+
+# Local exports and captures
+build/
+*.log
