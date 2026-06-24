@@ -10,8 +10,11 @@ const CombatAudioClass := preload("res://scripts/combat/combat_audio.gd")
 const BattleHUDClass := preload("res://scripts/battle_hud.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 const CITY_BG_PATH := "res://assets/backgrounds/city.png"
+const CITY_DAY_PATH := "res://assets/backgrounds/city_day.png"
 
 var city_texture: Texture2D
+var city_day_texture: Texture2D
+var world_time := 0.0
 var player: CombatPlayer
 var foreground: Node2D
 var transition_layer: CanvasLayer
@@ -37,6 +40,8 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("050819"))
 	if ResourceLoader.exists(CITY_BG_PATH):
 		city_texture = load(CITY_BG_PATH)
+	if ResourceLoader.exists(CITY_DAY_PATH):
+		city_day_texture = load(CITY_DAY_PATH)
 	stage_definition = ContentRegistryClass.stage(stage_id)
 	player = PlayerClass.new()
 	player.setup(CyberPlayer.ViewMode.BEAT_EM_UP)
@@ -241,17 +246,22 @@ func _draw_room_variant() -> void:
 
 
 func _draw_sky_and_depth() -> void:
-	draw_rect(Rect2(0, 0, 480, 270), Color("050819"))
-	draw_rect(Rect2(0, 27, 480, 142), Color("081126"))
-	# Distant city skyline (licensed CraftPix bg) tinted per stage mood, giving a
-	# refined horizon behind the stage's own midground structures.
+	# Shared day/night clock so a stage matches the time you deployed at.
+	var day := 0.5 + 0.5 * sin(world_time * 0.057)
+	draw_rect(Rect2(0, 0, 480, 270), Color("050819").lerp(Color("2b3650"), day * 0.8))
+	draw_rect(Rect2(0, 27, 480, 142), Color("081126").lerp(Color("303c58"), day * 0.7))
+	# Distant city skyline (licensed CraftPix bg) tinted per stage mood, with the
+	# night and day variants crossfading behind the stage's midground structures.
 	if city_texture:
 		var tint := Color(0.5, 0.45, 0.6, 0.85)
 		match stage_id:
 			"arcade": tint = Color(0.54, 0.47, 0.64, 0.95)
 			"transit": tint = Color(0.34, 0.43, 0.5, 0.68)
 			"foundry": tint = Color(0.52, 0.39, 0.4, 0.66)
-		draw_texture_rect(city_texture, Rect2(0, 18, 480, 152), false, tint)
+		var dest := Rect2(0, 18, 480, 152)
+		draw_texture_rect(city_texture, dest, false, tint)
+		if city_day_texture and day > 0.01:
+			draw_texture_rect(city_day_texture, dest, false, Color(0.95, 0.92, 0.88, tint.a * day))
 	else:
 		for i in range(18):
 			var width := 18 + (i * 11) % 24

@@ -12,6 +12,15 @@ var transitioning := false
 var selected_stage_id := "arcade"
 var salvage := 160
 var last_loot := 0
+# Persistent time-of-day clock shared across worlds, so deploying from the
+# bunker at night drops you into a night-time stage.
+var world_time := 0.0
+
+
+func _process(delta: float) -> void:
+	world_time += delta
+	if is_instance_valid(current_world) and "world_time" in current_world:
+		current_world.world_time = world_time
 
 
 func _ready() -> void:
@@ -74,6 +83,8 @@ func _show_world(target: String) -> void:
 		_:
 			current_world = DUNGEON_SCENE.instantiate()
 			current_world.stage_id = selected_stage_id
+	if "world_time" in current_world:
+		current_world.world_time = world_time
 	add_child(current_world)
 	move_child(current_world, 0)
 	current_world.transition_requested.connect(_on_transition_requested)

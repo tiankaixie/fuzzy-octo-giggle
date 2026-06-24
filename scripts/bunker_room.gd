@@ -14,6 +14,7 @@ var above_ground := false
 var window_col := 0
 var city_texture: Texture2D
 var city_day_texture: Texture2D
+var world_time := 0.0
 
 func setup(type: String, joins_left: bool, joins_right: bool, room_level := 1) -> void:
 	room_type = type
@@ -205,7 +206,7 @@ func _draw_city_window() -> void:
 	var src_x := clampf(86.0 + float(window_col) * 56.0, 0.0, float(city_texture.get_width()) - 156.0)
 	var src := Rect2(src_x, 66, 156, 78)
 	var dest := Rect2(wx, wy, ww, wh)
-	var day := 0.5 + 0.5 * sin(room_time * 0.057)
+	var day := 0.5 + 0.5 * sin(world_time * 0.057)
 	draw_texture_rect_region(city_texture, dest, src, Color(0.72, 0.74, 0.88))
 	if city_day_texture and day > 0.01:
 		draw_texture_rect_region(city_day_texture, dest, src, Color(0.95, 0.92, 0.88, day))

@@ -39,6 +39,7 @@ var salvage := 160
 var last_loot := 0
 var city_texture: Texture2D
 var city_day_texture: Texture2D
+var world_time := 0.0
 
 
 func _ready() -> void:
@@ -68,6 +69,9 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	ambience_time += delta
+	for room in room_nodes:
+		if is_instance_valid(room) and room.above_ground:
+			room.world_time = world_time
 	if not floor_switching:
 		player.position.y = _floor_y(current_floor)
 	player.position.x = clampf(player.position.x, 15.0, 466.0)
@@ -415,8 +419,8 @@ func _draw() -> void:
 
 
 func _day_factor() -> float:
-	# Slow ambient day/night cycle (~110s period); 0 = night, 1 = day.
-	return 0.5 + 0.5 * sin(ambience_time * 0.057)
+	# Slow day/night cycle (~110s period) on the shared world clock; 0=night, 1=day.
+	return 0.5 + 0.5 * sin(world_time * 0.057)
 
 
 func _draw_surface_entrance() -> void:
