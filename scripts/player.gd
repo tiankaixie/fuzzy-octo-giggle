@@ -103,9 +103,12 @@ func _draw() -> void:
 
 
 func _draw_side() -> void:
-	# Body is an AnimatedSprite2D child now; only the contact shadow is drawn here.
+	# Body is an AnimatedSprite2D child (drawn after this); the shadow and a soft
+	# backlight halo go here so the silhouette reads against the graded scene.
 	_draw_oval(Vector2(0, 3), Vector2(9, 3.2), Color(0.01, 0.02, 0.05, 0.55))
 	_draw_oval(Vector2(0, 3), Vector2(6, 2.2), Color(0.0, 0.01, 0.03, 0.4))
+	for i in range(3, 0, -1):
+		draw_circle(Vector2(0, -18), 8.0 + float(i) * 3.5, Color(0.45, 0.72, 0.96, 0.04))
 
 
 func _draw_top_down() -> void:

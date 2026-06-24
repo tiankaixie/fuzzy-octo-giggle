@@ -200,6 +200,9 @@ func _draw() -> void:
 	var head_y := -58.0 if is_elite else -46.0
 	draw_ellipse(Vector2(0, 3), 12.0 if not is_elite else 16.0, 4.0, Color(0.01, 0.02, 0.05, 0.6))
 	draw_ellipse(Vector2(0, 3), 8.0 if not is_elite else 11.0, 2.5, Color(0.0, 0.01, 0.03, 0.4))
+	if not is_elite:
+		for i in range(3, 0, -1):
+			draw_circle(Vector2(0, -20), 7.0 + float(i) * 3.0, Color(glow, 0.025 * float(4 - i)))
 	if is_elite:
 		for i in range(3, 0, -1):
 			draw_circle(Vector2(0, -24), 18.0 + i * 3.0, Color(glow, 0.012 * i))

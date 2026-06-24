@@ -6,6 +6,7 @@ signal salvage_changed(value: int)
 const PlayerClass := preload("res://scripts/player.gd")
 const RoomClass := preload("res://scripts/bunker_room.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
+const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
 
 const COLS := 6
 const ROWS := 3
@@ -63,6 +64,11 @@ func _ready() -> void:
 	overlay.z_index = 100
 	overlay.draw.connect(_draw_overlay)
 	add_child(overlay)
+
+	var cinematic := CinematicOverlayClass.new()
+	add_child(cinematic)
+	cinematic.configure({"grade": Color(0.92, 0.56, 0.3, 0.05), "fog": Color(0.16, 0.13, 0.2), "fog_strength": 0.09, "particles": "dust", "count": 36, "vignette": 0.8, "letterbox": 12.0})
+
 	if last_loot > 0:
 		_show_status("EXPEDITION SALVAGE // +" + str(last_loot))
 
@@ -411,8 +417,8 @@ func _draw() -> void:
 				_draw_empty_cell(cell_pos, col, row)
 
 	# Bunker identity, on small plates so it reads over the sky.
-	_draw_plate_label(Vector2(74, 5), "BUNKER 07 // HABITAT GRID", Color("9aa6c0"))
-	_draw_plate_label(Vector2(393, 5), "SALVAGE " + str(salvage), Color("e3b669"))
+	_draw_plate_label(Vector2(74, 15), "BUNKER 07 // HABITAT GRID", Color("9aa6c0"))
+	_draw_plate_label(Vector2(393, 15), "SALVAGE " + str(salvage), Color("e3b669"))
 	var lift_hint := "W/S  CHANGE FLOOR" if player and player.position.x < 64.0 and not build_mode else ""
 	if lift_hint != "":
 		_label(lift_hint, Vector2(50, 235), Color("e6a466"), 7)

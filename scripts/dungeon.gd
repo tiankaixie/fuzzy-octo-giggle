@@ -9,6 +9,7 @@ const ProjectileClass := preload("res://scripts/combat/combat_projectile.gd")
 const CombatAudioClass := preload("res://scripts/combat/combat_audio.gd")
 const BattleHUDClass := preload("res://scripts/battle_hud.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
+const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
 const CITY_BG_PATH := "res://assets/backgrounds/city.png"
 const CITY_DAY_PATH := "res://assets/backgrounds/city_day.png"
 
@@ -63,10 +64,24 @@ func _ready() -> void:
 	foreground.draw.connect(_draw_foreground)
 	add_child(foreground)
 	_build_room_wipe()
+	var cinematic := CinematicOverlayClass.new()
+	add_child(cinematic)
+	cinematic.configure(_cinematic_preset())
+
 	battle_hud = BattleHUDClass.new()
 	add_child(battle_hud)
 	battle_hud.configure(stage_id, _room_count())
 	_spawn_room_wave()
+
+
+func _cinematic_preset() -> Dictionary:
+	match stage_id:
+		"transit":
+			return {"grade": Color(0.22, 0.42, 0.66, 0.10), "fog": Color(0.09, 0.16, 0.25), "fog_strength": 0.16, "particles": "rain", "count": 70}
+		"foundry":
+			return {"grade": Color(1.0, 0.42, 0.18, 0.10), "fog": Color(0.23, 0.11, 0.08), "fog_strength": 0.15, "particles": "embers", "count": 52}
+		_:
+			return {"grade": Color(0.88, 0.28, 0.6, 0.1), "fog": Color(0.23, 0.14, 0.28), "fog_strength": 0.13, "particles": "snow", "count": 48}
 
 
 func _process(delta: float) -> void:

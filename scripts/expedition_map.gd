@@ -4,6 +4,7 @@ signal stage_selected(stage_id: String)
 signal transition_requested(target: String)
 
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
+const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
 
 var stages: Array = []
 var selected_index := 0
@@ -15,6 +16,9 @@ var launching := false
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("050818"))
 	stages = ContentRegistryClass.stages()
+	var cinematic := CinematicOverlayClass.new()
+	add_child(cinematic)
+	cinematic.configure({"grade": Color(0.78, 0.36, 0.46, 0.06), "fog": Color(0.16, 0.16, 0.26), "fog_strength": 0.1, "particles": "snow", "count": 30, "vignette": 0.7, "letterbox": 12.0})
 
 
 func _process(delta: float) -> void:
