@@ -8,6 +8,7 @@ const EnemyClass := preload("res://scripts/combat/combat_enemy.gd")
 const ProjectileClass := preload("res://scripts/combat/combat_projectile.gd")
 const CombatAudioClass := preload("res://scripts/combat/combat_audio.gd")
 const BattleHUDClass := preload("res://scripts/battle_hud.gd")
+const CombatFXClass := preload("res://scripts/combat/combat_fx.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
 const PostProcessClass := preload("res://scripts/post_process.gd")
@@ -29,6 +30,7 @@ var foreground: Node2D
 var transition_layer: CanvasLayer
 var room_wipe: ColorRect
 var battle_hud: BattleHUD
+var combat_fx: Node2D
 var stage_id := "arcade"
 var stage_definition: StageDefinition
 var combat_audio: CombatAudio
@@ -69,6 +71,12 @@ func _ready() -> void:
 	player.sfx_requested.connect(_play_sfx)
 	player.impact_requested.connect(_on_impact)
 	player.died.connect(_on_player_died)
+
+	combat_fx = CombatFXClass.new()
+	add_child(combat_fx)
+	player.hit_landed.connect(func(p, amount): combat_fx.hit(p, amount, Color(1.0, 0.95, 0.6)))
+	player.damaged.connect(func(amount): combat_fx.player_hit(player.position + Vector2(0, -16), amount))
+	player.shoot_requested.connect(_spawn_player_shot)
 
 	combat_audio = CombatAudioClass.new()
 	add_child(combat_audio)
@@ -218,10 +226,25 @@ func _spawn_projectile(origin: Vector2, direction: Vector2, damage: float, knock
 	add_child(projectile)
 
 
+func _spawn_player_shot(origin: Vector2, direction: Vector2, damage: float, knockback: float) -> void:
+	var shot: CombatProjectile = ProjectileClass.new()
+	shot.setup(origin, direction, null, damage, knockback, Color(1.0, 0.86, 0.5), true)
+	shot.struck.connect(_on_player_shot_hit)
+	add_child(shot)
+
+
+func _on_player_shot_hit(pos: Vector2, amount: int, _tint: Color) -> void:
+	combat_fx.hit(pos, amount, Color(1.0, 0.95, 0.6))
+	_play_sfx("hit")
+	_on_impact(4.0, 0.035)
+
+
 func _on_enemy_defeated(_enemy: CombatEnemy, loot: int) -> void:
 	total_loot += loot
 	remaining_enemies = maxi(0, remaining_enemies - 1)
 	shake_strength = maxf(shake_strength, 7.0)
+	if is_instance_valid(combat_fx) and is_instance_valid(_enemy) and _enemy.definition:
+		combat_fx.burst(_enemy.position + Vector2(0, -16), _enemy.definition.glow_color)
 	if remaining_enemies == 0:
 		cleared_rooms[room_index] = true
 		battle_hud.show_banner("ROOM CLEAR", 1.5)
@@ -298,6 +321,18 @@ func _draw_city_props() -> void:
 			var tex = wc_props.get(s[0])
 			if tex:
 				draw_texture(tex, s[1], Color(1, 1, 1))
+	elif stage_id == "transit":
+		# Interior: tech panels and monitors on the tunnel walls, cool tint.
+		for s in [["control-box-2", Vector2(54, 92)], ["monitor-face", Vector2(150, 88)], ["control-box-1", Vector2(300, 96)], ["banner-neon", Vector2(408, 84)]]:
+			var tex = wc_props.get(s[0])
+			if tex:
+				draw_texture(tex, s[1], Color(0.68, 0.78, 0.88))
+	elif stage_id == "foundry":
+		# Interior: tech panels on the industrial frame, warm tint.
+		for s in [["control-box-1", Vector2(96, 90)], ["monitor-face", Vector2(150, 94)], ["control-box-2", Vector2(332, 92)], ["banner-neon", Vector2(58, 78)]]:
+			var tex = wc_props.get(s[0])
+			if tex:
+				draw_texture(tex, s[1], Color(0.9, 0.72, 0.6))
 	# Wall tech on the side pillars for every stage.
 	if wc_props.has("control-box-1"):
 		draw_texture(wc_props["control-box-1"], Vector2(20, 96), Color(0.72, 0.74, 0.82))
@@ -436,12 +471,21 @@ func _draw_ground_decals(tint: Color) -> void:
 func _draw_arcade() -> void:
 	# The lit city buildings/signs now come from the Warped City backdrop; only
 	# the street-level foreground props and navigation are drawn here.
-	# Arcade cabinets emit small pools of cyan and violet.
-	for x in [180, 211, 242]:
-		draw_rect(Rect2(x, 126, 24, 43), Color("25263f"))
-		draw_rect(Rect2(x + 4, 131, 16, 12), Color("0b1725"))
-		draw_rect(Rect2(x + 6, 133, 12, 2), Color("4ecfc8") if x % 2 == 0 else Color("9c65dd"))
-		draw_rect(Rect2(x + 8, 151, 8, 3), Color("c45d91"))
+	# Arcade cabinets: shaded body, glowing screen and a small control panel.
+	for i in range(3):
+		var x := 180.0 + i * 31.0
+		var screen := Color("4ecfc8") if i % 2 == 0 else Color("9c65dd")
+		draw_rect(Rect2(x, 124, 24, 45), Color("1b1c30"))            # body
+		draw_rect(Rect2(x, 124, 3, 45), Color("2a2c46"))             # lit left edge
+		draw_rect(Rect2(x + 21, 124, 3, 45), Color("101120"))        # shadow right edge
+		draw_rect(Rect2(x + 3, 124, 18, 2), Color(screen, 0.7))      # marquee
+		_glow_circle(Vector2(x + 12, 137), screen, 14.0)            # screen bloom
+		draw_rect(Rect2(x + 4, 130, 16, 13), Color("071018"))        # screen recess
+		draw_rect(Rect2(x + 6, 132, 12, 9), Color(screen, 0.85))     # screen
+		draw_rect(Rect2(x + 6, 132 + int(fmod(ambience_time * 6.0 + i, 9.0)), 12, 1), Color(1, 1, 1, 0.3))  # scanline
+		draw_rect(Rect2(x + 4, 150, 16, 7), Color("141525"))         # control panel
+		draw_rect(Rect2(x + 7, 152, 3, 3), Color("e0566a"))          # buttons
+		draw_rect(Rect2(x + 12, 152, 3, 3), Color("e6c25a"))
 	# Surface hatch back to the bunker, visibly safe and always available.
 	draw_rect(Rect2(0, 112, 25, 58), Color("122536"))
 	draw_rect(Rect2(4, 119, 19, 50), Color("284252"))

@@ -2,7 +2,6 @@ class_name CombatEnemy
 extends CharacterBody2D
 
 const CharacterFramesClass := preload("res://scripts/art/character_frames.gd")
-const RIM_SHADER := preload("res://shaders/rim_light.gdshader")
 
 # Each enemy archetype maps to a licensed CraftPix character (OGA-BY 3.0).
 const ARCHETYPE_CHARACTER := {
@@ -60,12 +59,6 @@ func _ready() -> void:
 	sprite.scale = Vector2(1.35, 1.35) if is_elite else Vector2.ONE
 	# Tint toward the archetype's signature glow so reused art still reads distinct.
 	sprite.modulate = definition.body_color.lerp(Color.WHITE, 0.55)
-	var rim := ShaderMaterial.new()
-	rim.shader = RIM_SHADER
-	rim.set_shader_parameter("rim_color", definition.glow_color)
-	rim.set_shader_parameter("rim_strength", 0.6)
-	rim.set_shader_parameter("top_boost", 0.5)
-	sprite.material = rim
 	add_child(sprite)
 	current_anim = "idle"
 	sprite.play("idle")
@@ -166,7 +159,9 @@ func _perform_attack() -> void:
 	strike_time = 0.2
 	var offset := target.position - position
 	if definition.archetype == EnemyDefinition.Archetype.RANGED:
-		projectile_requested.emit(position + Vector2(facing * 10.0, -9), offset.normalized(), definition.damage, definition.knockback_force, definition.glow_color)
+		# Flat horizontal shot along the lane (no tracking) so it stays easy to
+		# read and dodge by stepping up/down in depth.
+		projectile_requested.emit(position + Vector2(facing * 10.0, -9), Vector2(facing, 0.0), definition.damage, definition.knockback_force, definition.glow_color)
 		sfx_requested.emit("shot")
 	elif absf(offset.x) < definition.attack_range + 10.0 and absf(offset.y) < 22.0:
 		if target.take_damage(definition.damage, position, definition.knockback_force):

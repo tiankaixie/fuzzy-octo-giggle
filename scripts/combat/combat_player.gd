@@ -6,6 +6,9 @@ signal energy_changed(value: float, maximum: float)
 signal combo_changed(count: int)
 signal sfx_requested(id: String)
 signal impact_requested(strength: float, duration: float)
+signal hit_landed(world_pos: Vector2, amount: int)
+signal damaged(amount: int)
+signal shoot_requested(origin: Vector2, direction: Vector2, damage: float, knockback: float)
 signal died
 
 const MAX_HEALTH := 100.0
@@ -35,16 +38,12 @@ func _ready() -> void:
 
 # Combat states take priority over the base idle/walk animation.
 func _desired_anim() -> String:
-	if defeated:
-		return "death"
-	if hitstun > 0.0:
+	if defeated or hitstun > 0.0:
 		return "hurt"
 	if dodge_time > 0.0:
 		return "jump"
 	if attack_lock > 0.04 or pending_attack != "":
-		if pending_attack == "skill":
-			return "attack3"
-		return ["attack1", "attack2", "attack3"][clampi(combo_step, 0, 2)]
+		return "shoot"
 	return super._desired_anim()
 
 
@@ -100,12 +99,10 @@ func _physics_process(delta: float) -> void:
 func basic_attack() -> bool:
 	if attack_lock > 0.06 or hitstun > 0.0 or dodge_time > 0.0 or defeated:
 		return false
-	combo_step = (combo_step + 1) % 3 if combo_window > 0.0 else 0
-	combo_window = 0.62
-	attack_lock = 0.16 if combo_step < 2 else 0.24
-	hit_delay = 0.045 if combo_step < 2 else 0.075
+	attack_lock = 0.16
+	hit_delay = 0.05
 	pending_attack = "basic"
-	sfx_requested.emit("swing")
+	sfx_requested.emit("shot")
 	queue_redraw()
 	return true
 
@@ -144,6 +141,7 @@ func take_damage(amount: float, source_position: Vector2, knockback: float) -> b
 		return false
 	health = maxf(0.0, health - amount)
 	health_changed.emit(health, MAX_HEALTH)
+	damaged.emit(int(round(amount)))
 	hitstun = 0.24
 	attack_lock = 0.0
 	pending_attack = ""
@@ -164,31 +162,23 @@ func take_damage(amount: float, source_position: Vector2, knockback: float) -> b
 func _deal_pending_attack() -> void:
 	if pending_attack == "":
 		return
-	var is_skill := pending_attack == "skill"
-	var reach: float = 78.0 if is_skill else [28.0, 32.0, 39.0][combo_step]
-	var damage: float = 32.0 if is_skill else [12.0, 15.0, 23.0][combo_step]
-	var knockback: float = 55.0 if is_skill else [24.0, 30.0, 48.0][combo_step]
-	var connected := 0
-	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(enemy) or enemy.dead:
-			continue
-		var offset: Vector2 = enemy.position - position
-		if offset.x * facing >= -5.0 and absf(offset.x) <= reach and absf(offset.y) <= (31.0 if is_skill else 21.0):
-			if enemy.take_damage(damage, position, knockback):
-				connected += 1
-	if connected > 0:
-		combo_hits += connected
-		combo_display = 1.7
-		combo_changed.emit(combo_hits)
-		sfx_requested.emit("hit")
-		impact_requested.emit(9.0 if is_skill or combo_step == 2 else 5.0, 0.065 if is_skill else 0.04)
+	var muzzle := position + Vector2(facing * 12.0, -16.0)
+	if pending_attack == "skill":
+		# Three-round spread across the depth lanes.
+		for dy in [-0.16, 0.0, 0.16]:
+			shoot_requested.emit(muzzle, Vector2(facing, dy).normalized(), 18.0, 34.0)
+		impact_requested.emit(6.0, 0.05)
+	else:
+		shoot_requested.emit(muzzle, Vector2(facing, 0.0), 14.0, 22.0)
+		impact_requested.emit(3.0, 0.03)
 	pending_attack = ""
 
 
-# Body + attack motion come from the sprite animation; base draws the shadow.
-# A brief energy flourish is kept for the skill to sell its heavier hit.
+# Body + recoil come from the sprite animation; base draws the shadow. A brief
+# muzzle flash sells each shot.
 func _draw() -> void:
 	super._draw()
-	if pending_attack == "skill" or (current_anim == "attack3" and attack_lock > 0.1):
-		for i in range(3):
-			draw_arc(Vector2(facing * 16, -16), 20.0 + i * 6.0, -1.1 if facing > 0 else 2.0, 1.1 if facing > 0 else 4.2, 14, Color(0.32, 0.95, 0.86, 0.5 - i * 0.13), 2)
+	if pending_attack != "" or attack_lock > 0.08:
+		var m := Vector2(facing * 13.0, -16.0)
+		draw_circle(m, 3.0, Color(1.0, 0.88, 0.5, 0.85))
+		draw_circle(m + Vector2(facing * 3.0, 0.0), 2.0, Color(1.0, 1.0, 0.85, 0.7))

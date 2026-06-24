@@ -1,8 +1,9 @@
 class_name BattleHUD
 extends CanvasLayer
 
-const HOTKEYS := ["J", "K", "L", "U", "I", "O", "P", ";"]
-const KEYCODES := [KEY_J, KEY_K, KEY_L, KEY_U, KEY_I, KEY_O, KEY_P, KEY_SEMICOLON]
+const HOTKEYS := ["J", "K", "L"]
+const KEYCODES := [KEY_J, KEY_K, KEY_L]
+const SKILL_NAMES := ["FIRE", "SPREAD", "DODGE"]
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 
 var canvas: Node2D
@@ -13,7 +14,7 @@ var room_count := 3
 var hp := 100.0
 var energy := 76.0
 var combo_count := 0
-var skill_flash := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+var skill_flash := [0.0, 0.0, 0.0]
 var hud_time := 0.0
 var banner_text := ""
 var banner_time := 0.0
@@ -156,11 +157,13 @@ func _draw_bottom_frame(accent: Color) -> void:
 func _draw_portrait(accent: Color) -> void:
 	canvas.draw_rect(Rect2(5, 232, 29, 31), Color("151a2c"))
 	canvas.draw_rect(Rect2(5, 232, 29, 31), accent.darkened(0.25), false, 1)
-	# Pixel portrait echoes the playable character.
-	canvas.draw_rect(Rect2(12, 240, 15, 16), Color("24344f"))
-	canvas.draw_rect(Rect2(14, 238, 11, 9), Color("9d6766"))
-	canvas.draw_rect(Rect2(13, 237, 12, 3), Color("354764"))
-	canvas.draw_rect(Rect2(21, 242, 5, 2), Color("59e7d7"))
+	# Pixel portrait echoes the Warped City gunner (purple hair, yellow jacket).
+	canvas.draw_rect(Rect2(12, 242, 15, 14), Color("e7b23b"))
+	canvas.draw_rect(Rect2(11, 244, 3, 12), Color("c8902c"))
+	canvas.draw_rect(Rect2(14, 238, 11, 8), Color("c5896a"))
+	canvas.draw_rect(Rect2(12, 235, 14, 5), Color("7a3d9e"))
+	canvas.draw_rect(Rect2(13, 235, 6, 3), Color("9a5cc0"))
+	canvas.draw_rect(Rect2(20, 242, 4, 2), Color("2b2b3c"))
 	canvas.draw_rect(Rect2(9, 254, 21, 7), Color("18243b"))
 	_label("07", Vector2(19, 261), Color("d4b477"), 6)
 
@@ -181,44 +184,30 @@ func _bar(rect: Rect2, amount: float, color: Color, text: String) -> void:
 
 func _draw_skill_slots(accent: Color) -> void:
 	for i in range(HOTKEYS.size()):
-		var pos := Vector2(138 + i * 31, 233)
+		var pos := Vector2(150 + i * 44, 233)
 		var flash: float = skill_flash[i]
-		var slot_color := accent if i < 4 else Color("8c68d2")
-		canvas.draw_rect(Rect2(pos, Vector2(27, 30)), Color(slot_color, 0.11 + flash * 0.3))
-		canvas.draw_rect(Rect2(pos, Vector2(27, 30)), slot_color.lightened(flash * 0.35), false, 1)
-		_draw_skill_icon(i, pos + Vector2(13, 12), slot_color, flash)
-		canvas.draw_rect(Rect2(pos + Vector2(1, 21), Vector2(25, 8)), Color(0.02, 0.025, 0.06, 0.82))
-		_label(HOTKEYS[i], pos + Vector2(3, 28), Color("d9d4dd"), 6)
-		if i in [2, 5, 7]:
-			_label(str(i + 1), pos + Vector2(20, 28), Color("696e80"), 5)
+		canvas.draw_rect(Rect2(pos, Vector2(40, 30)), Color(accent, 0.1 + flash * 0.3))
+		canvas.draw_rect(Rect2(pos, Vector2(40, 30)), accent.lightened(0.1 + flash * 0.4), false, 1)
+		_draw_skill_icon(i, pos + Vector2(20, 12), accent, flash)
+		canvas.draw_rect(Rect2(pos + Vector2(1, 1), Vector2(10, 9)), Color(0.02, 0.025, 0.06, 0.85))
+		_label(HOTKEYS[i], pos + Vector2(3, 8), Color("d9d4dd"), 6)
+		canvas.draw_rect(Rect2(pos + Vector2(0, 21), Vector2(40, 9)), Color(0.02, 0.025, 0.06, 0.82))
+		_label(SKILL_NAMES[i], pos + Vector2(4, 28), accent.lightened(0.22), 5)
 
 
 func _draw_skill_icon(index: int, center: Vector2, color: Color, flash: float) -> void:
-	var bright := color.lightened(0.28 + flash * 0.35)
+	var bright := color.lightened(0.3 + flash * 0.35)
 	match index:
-		0:
-			canvas.draw_line(center - Vector2(7, 4), center + Vector2(7, 4), bright, 3)
-			canvas.draw_line(center + Vector2(2, -6), center + Vector2(7, 4), bright, 2)
-		1:
-			canvas.draw_circle(center, 7, Color(color, 0.18))
-			canvas.draw_arc(center, 6, -1.2, 2.1, 10, bright, 2)
-		2:
-			canvas.draw_colored_polygon(PackedVector2Array([center + Vector2(-6, 6), center + Vector2(0, -7), center + Vector2(6, 6)]), Color(color, 0.55))
-		3:
-			canvas.draw_line(center + Vector2(-6, 0), center + Vector2(6, 0), bright, 3)
-			canvas.draw_line(center + Vector2(0, -6), center + Vector2(0, 6), bright, 3)
-		4:
-			canvas.draw_circle(center, 6, Color(color, 0.35))
-			canvas.draw_circle(center, 2, bright)
-		5:
-			for angle in [0.0, 2.1, 4.2]:
-				canvas.draw_line(center, center + Vector2(cos(angle), sin(angle)) * 7.0, bright, 2)
-		6:
-			canvas.draw_rect(Rect2(center - Vector2(5, 6), Vector2(10, 12)), Color(color, 0.45))
-			canvas.draw_rect(Rect2(center - Vector2(2, 3), Vector2(4, 6)), bright)
-		7:
-			canvas.draw_arc(center, 7, 0, TAU, 12, bright, 2)
-			canvas.draw_line(center, center + Vector2(5, -5), bright, 2)
+		0:  # FIRE — bullet leaving the barrel
+			canvas.draw_line(center + Vector2(-8, 0), center + Vector2(3, 0), bright, 2)
+			canvas.draw_circle(center + Vector2(6, 0), 2.0, bright)
+		1:  # SPREAD — three diverging shots
+			for a in [-0.45, 0.0, 0.45]:
+				canvas.draw_line(center + Vector2(-6, 0), center + Vector2(8, 0).rotated(a), bright, 1)
+		2:  # DODGE — dash chevrons
+			for dx in [-3.0, 2.0]:
+				canvas.draw_line(center + Vector2(dx - 2, -4), center + Vector2(dx + 3, 0), bright, 2)
+				canvas.draw_line(center + Vector2(dx + 3, 0), center + Vector2(dx - 2, 4), bright, 2)
 
 
 func _draw_item_slots(accent: Color) -> void:

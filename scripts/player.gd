@@ -2,13 +2,12 @@ class_name CyberPlayer
 extends CharacterBody2D
 
 const CharacterFramesClass := preload("res://scripts/art/character_frames.gd")
-const RIM_SHADER := preload("res://shaders/rim_light.gdshader")
 
 enum ViewMode { SIDE, TOP_DOWN, BEAT_EM_UP }
 
-# Licensed CraftPix cyberpunk sprite (OGA-BY 3.0, see assets/.../CREDITS.md).
-const CHARACTER_ID := "biker"
-const SPRITE_OFFSET := Vector2(0, -20)
+# Warped City gunner (ansimuz, CC0). 71x67 frames, scaled to game size.
+const SPRITE_OFFSET := Vector2(0, -33)
+const SPRITE_SCALE := 0.62
 
 var view_mode := ViewMode.SIDE
 var speed := 66.0
@@ -46,15 +45,10 @@ func _ready() -> void:
 
 	if view_mode != ViewMode.TOP_DOWN:
 		sprite = AnimatedSprite2D.new()
-		sprite.sprite_frames = CharacterFramesClass.get_frames(CHARACTER_ID)
+		sprite.sprite_frames = CharacterFramesClass.get_warped_player()
 		sprite.centered = true
 		sprite.offset = SPRITE_OFFSET
-		var rim := ShaderMaterial.new()
-		rim.shader = RIM_SHADER
-		rim.set_shader_parameter("rim_color", Color(0.55, 0.78, 1.0))
-		rim.set_shader_parameter("rim_strength", 0.55)
-		rim.set_shader_parameter("top_boost", 0.5)
-		sprite.material = rim
+		sprite.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
 		add_child(sprite)
 		current_anim = "idle"
 		sprite.play("idle")
