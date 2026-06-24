@@ -8,6 +8,7 @@ const EnemyClass := preload("res://scripts/combat/combat_enemy.gd")
 const ProjectileClass := preload("res://scripts/combat/combat_projectile.gd")
 const CombatAudioClass := preload("res://scripts/combat/combat_audio.gd")
 const BattleHUDClass := preload("res://scripts/battle_hud.gd")
+const CombatFXClass := preload("res://scripts/combat/combat_fx.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
 const PostProcessClass := preload("res://scripts/post_process.gd")
@@ -29,6 +30,7 @@ var foreground: Node2D
 var transition_layer: CanvasLayer
 var room_wipe: ColorRect
 var battle_hud: BattleHUD
+var combat_fx: Node2D
 var stage_id := "arcade"
 var stage_definition: StageDefinition
 var combat_audio: CombatAudio
@@ -69,6 +71,11 @@ func _ready() -> void:
 	player.sfx_requested.connect(_play_sfx)
 	player.impact_requested.connect(_on_impact)
 	player.died.connect(_on_player_died)
+
+	combat_fx = CombatFXClass.new()
+	add_child(combat_fx)
+	player.hit_landed.connect(func(p, amount): combat_fx.hit(p, amount, Color(1.0, 0.95, 0.6)))
+	player.damaged.connect(func(amount): combat_fx.player_hit(player.position + Vector2(0, -16), amount))
 
 	combat_audio = CombatAudioClass.new()
 	add_child(combat_audio)
@@ -222,6 +229,8 @@ func _on_enemy_defeated(_enemy: CombatEnemy, loot: int) -> void:
 	total_loot += loot
 	remaining_enemies = maxi(0, remaining_enemies - 1)
 	shake_strength = maxf(shake_strength, 7.0)
+	if is_instance_valid(combat_fx) and is_instance_valid(_enemy) and _enemy.definition:
+		combat_fx.burst(_enemy.position + Vector2(0, -16), _enemy.definition.glow_color)
 	if remaining_enemies == 0:
 		cleared_rooms[room_index] = true
 		battle_hud.show_banner("ROOM CLEAR", 1.5)

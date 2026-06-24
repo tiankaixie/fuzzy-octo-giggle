@@ -6,6 +6,8 @@ signal energy_changed(value: float, maximum: float)
 signal combo_changed(count: int)
 signal sfx_requested(id: String)
 signal impact_requested(strength: float, duration: float)
+signal hit_landed(world_pos: Vector2, amount: int)
+signal damaged(amount: int)
 signal died
 
 const MAX_HEALTH := 100.0
@@ -144,6 +146,7 @@ func take_damage(amount: float, source_position: Vector2, knockback: float) -> b
 		return false
 	health = maxf(0.0, health - amount)
 	health_changed.emit(health, MAX_HEALTH)
+	damaged.emit(int(round(amount)))
 	hitstun = 0.24
 	attack_lock = 0.0
 	pending_attack = ""
@@ -176,6 +179,7 @@ func _deal_pending_attack() -> void:
 		if offset.x * facing >= -5.0 and absf(offset.x) <= reach and absf(offset.y) <= (31.0 if is_skill else 21.0):
 			if enemy.take_damage(damage, position, knockback):
 				connected += 1
+				hit_landed.emit(enemy.position + Vector2(0, -14), int(round(damage)))
 	if connected > 0:
 		combo_hits += connected
 		combo_display = 1.7
