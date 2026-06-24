@@ -2,6 +2,7 @@ class_name CombatEnemy
 extends CharacterBody2D
 
 const CharacterFramesClass := preload("res://scripts/art/character_frames.gd")
+const RIM_SHADER := preload("res://shaders/rim_light.gdshader")
 
 # Each enemy archetype maps to a licensed CraftPix character (OGA-BY 3.0).
 const ARCHETYPE_CHARACTER := {
@@ -59,6 +60,12 @@ func _ready() -> void:
 	sprite.scale = Vector2(1.35, 1.35) if is_elite else Vector2.ONE
 	# Tint toward the archetype's signature glow so reused art still reads distinct.
 	sprite.modulate = definition.body_color.lerp(Color.WHITE, 0.55)
+	var rim := ShaderMaterial.new()
+	rim.shader = RIM_SHADER
+	rim.set_shader_parameter("rim_color", definition.glow_color)
+	rim.set_shader_parameter("rim_strength", 0.6)
+	rim.set_shader_parameter("top_boost", 0.5)
+	sprite.material = rim
 	add_child(sprite)
 	current_anim = "idle"
 	sprite.play("idle")
@@ -200,6 +207,9 @@ func _draw() -> void:
 	var head_y := -58.0 if is_elite else -46.0
 	draw_ellipse(Vector2(0, 3), 12.0 if not is_elite else 16.0, 4.0, Color(0.01, 0.02, 0.05, 0.6))
 	draw_ellipse(Vector2(0, 3), 8.0 if not is_elite else 11.0, 2.5, Color(0.0, 0.01, 0.03, 0.4))
+	if not is_elite:
+		for i in range(3, 0, -1):
+			draw_circle(Vector2(0, -20), 7.0 + float(i) * 3.0, Color(glow, 0.025 * float(4 - i)))
 	if is_elite:
 		for i in range(3, 0, -1):
 			draw_circle(Vector2(0, -24), 18.0 + i * 3.0, Color(glow, 0.012 * i))

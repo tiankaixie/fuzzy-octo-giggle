@@ -6,6 +6,8 @@ signal salvage_changed(value: int)
 const PlayerClass := preload("res://scripts/player.gd")
 const RoomClass := preload("res://scripts/bunker_room.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
+const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
+const PostProcessClass := preload("res://scripts/post_process.gd")
 
 const COLS := 6
 const ROWS := 3
@@ -15,8 +17,8 @@ const SAVE_PATH := "user://bunker_layout.json"
 # The top floor sits above ground; everything below GROUND_Y is buried. Row 0
 # cells become windows onto the city skyline (licensed CraftPix bg, OGA-BY 3.0).
 const GROUND_Y := 100.0
-const CITY_BG_PATH := "res://assets/backgrounds/city.png"
-const CITY_DAY_PATH := "res://assets/backgrounds/city_day.png"
+const WC_NEAR := "res://assets/warped_city/bg/near-buildings-bg.png"
+const WC_SKYLINE := "res://assets/warped_city/bg/skyline-b.png"
 
 var player: CyberPlayer
 var layout: Array = []
@@ -38,16 +40,16 @@ var status_until := 0.0
 var salvage := 160
 var last_loot := 0
 var city_texture: Texture2D
-var city_day_texture: Texture2D
+var wc_skyline: Texture2D
 var world_time := 0.0
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("070812"))
-	if ResourceLoader.exists(CITY_BG_PATH):
-		city_texture = load(CITY_BG_PATH)
-	if ResourceLoader.exists(CITY_DAY_PATH):
-		city_day_texture = load(CITY_DAY_PATH)
+	if ResourceLoader.exists(WC_NEAR):
+		city_texture = load(WC_NEAR)
+	if ResourceLoader.exists(WC_SKYLINE):
+		wc_skyline = load(WC_SKYLINE)
 	room_definitions = ContentRegistryClass.buildable_rooms()
 	for definition: RoomDefinition in room_definitions:
 		buildable_types.append(definition.id)
@@ -63,6 +65,15 @@ func _ready() -> void:
 	overlay.z_index = 100
 	overlay.draw.connect(_draw_overlay)
 	add_child(overlay)
+
+	var post := PostProcessClass.new()
+	add_child(post)
+	post.configure({"bloom_intensity": 0.7, "bloom_threshold": 0.56, "ca_amount": 0.0012, "contrast": 1.06, "saturation": 1.08, "grain": 0.04})
+
+	var cinematic := CinematicOverlayClass.new()
+	add_child(cinematic)
+	cinematic.configure({"grade": Color(0.92, 0.56, 0.3, 0.05), "fog": Color(0.16, 0.13, 0.2), "fog_strength": 0.09, "particles": "dust", "count": 36, "vignette": 0.8, "letterbox": 12.0})
+
 	if last_loot > 0:
 		_show_status("EXPEDITION SALVAGE // +" + str(last_loot))
 
@@ -224,7 +235,6 @@ func _rebuild_rooms() -> void:
 			var right_join := col < COLS - 1 and get_room(Vector2i(col + 1, row)) == type and type != "airlock"
 			room.position = GRID_ORIGIN + Vector2(col, row) * CELL_SIZE
 			room.city_texture = city_texture
-			room.city_day_texture = city_day_texture
 			room.above_ground = row == 0 and type != "airlock"
 			room.window_col = col
 			room.setup(type, left_join, right_join, get_room_level(cell))
@@ -345,12 +355,15 @@ func _draw() -> void:
 	for i in range(9):
 		var t := float(i) / 8.0
 		draw_rect(Rect2(0, i * 11, 480, 12), Color(0.07 + 0.05 * t, 0.07 + 0.04 * t, 0.14 + 0.07 * t, 0.5 * (1.0 - day * 0.55)))
-	# Distant cyberpunk skyline (licensed CraftPix bg) seen above ground and
-	# through the top-floor windows; night and day variants crossfade.
+	# High-fidelity cyberpunk skyline (Warped City, CC0) seen above ground and
+	# through the top-floor windows, brightness lerped across the day/night cycle.
+	var b := 0.6 + 0.45 * day
+	if wc_skyline:
+		var sw := wc_skyline.get_width()
+		for tx in range(0, 5):
+			draw_texture(wc_skyline, Vector2(tx * sw, GROUND_Y - wc_skyline.get_height()), Color(b * 0.7, b * 0.72, b * 0.82))
 	if city_texture:
-		draw_texture(city_texture, Vector2(-48, -54), Color(0.72, 0.74, 0.88))
-	if city_day_texture and day > 0.01:
-		draw_texture(city_day_texture, Vector2(-48, -54), Color(0.95, 0.92, 0.88, day))
+		draw_texture(city_texture, Vector2(0, GROUND_Y - city_texture.get_height()), Color(b * 0.95, b * 0.95, b))
 	draw_rect(Rect2(0, GROUND_Y - 18, 480, 18), Color(0.55, 0.6, 0.82, 0.06))
 	# Exterior street level at the base of the windows, so the city sits on
 	# ground and the surface line reads clearly.
@@ -411,8 +424,8 @@ func _draw() -> void:
 				_draw_empty_cell(cell_pos, col, row)
 
 	# Bunker identity, on small plates so it reads over the sky.
-	_draw_plate_label(Vector2(74, 5), "BUNKER 07 // HABITAT GRID", Color("9aa6c0"))
-	_draw_plate_label(Vector2(393, 5), "SALVAGE " + str(salvage), Color("e3b669"))
+	_draw_plate_label(Vector2(74, 15), "BUNKER 07 // HABITAT GRID", Color("9aa6c0"))
+	_draw_plate_label(Vector2(393, 15), "SALVAGE " + str(salvage), Color("e3b669"))
 	var lift_hint := "W/S  CHANGE FLOOR" if player and player.position.x < 64.0 and not build_mode else ""
 	if lift_hint != "":
 		_label(lift_hint, Vector2(50, 235), Color("e6a466"), 7)

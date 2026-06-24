@@ -2,6 +2,7 @@ class_name CyberPlayer
 extends CharacterBody2D
 
 const CharacterFramesClass := preload("res://scripts/art/character_frames.gd")
+const RIM_SHADER := preload("res://shaders/rim_light.gdshader")
 
 enum ViewMode { SIDE, TOP_DOWN, BEAT_EM_UP }
 
@@ -48,6 +49,12 @@ func _ready() -> void:
 		sprite.sprite_frames = CharacterFramesClass.get_frames(CHARACTER_ID)
 		sprite.centered = true
 		sprite.offset = SPRITE_OFFSET
+		var rim := ShaderMaterial.new()
+		rim.shader = RIM_SHADER
+		rim.set_shader_parameter("rim_color", Color(0.55, 0.78, 1.0))
+		rim.set_shader_parameter("rim_strength", 0.55)
+		rim.set_shader_parameter("top_boost", 0.5)
+		sprite.material = rim
 		add_child(sprite)
 		current_anim = "idle"
 		sprite.play("idle")
@@ -103,9 +110,12 @@ func _draw() -> void:
 
 
 func _draw_side() -> void:
-	# Body is an AnimatedSprite2D child now; only the contact shadow is drawn here.
+	# Body is an AnimatedSprite2D child (drawn after this); the shadow and a soft
+	# backlight halo go here so the silhouette reads against the graded scene.
 	_draw_oval(Vector2(0, 3), Vector2(9, 3.2), Color(0.01, 0.02, 0.05, 0.55))
 	_draw_oval(Vector2(0, 3), Vector2(6, 2.2), Color(0.0, 0.01, 0.03, 0.4))
+	for i in range(3, 0, -1):
+		draw_circle(Vector2(0, -18), 8.0 + float(i) * 3.5, Color(0.45, 0.72, 0.96, 0.04))
 
 
 func _draw_top_down() -> void:

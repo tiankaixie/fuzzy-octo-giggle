@@ -9,11 +9,20 @@ const ProjectileClass := preload("res://scripts/combat/combat_projectile.gd")
 const CombatAudioClass := preload("res://scripts/combat/combat_audio.gd")
 const BattleHUDClass := preload("res://scripts/battle_hud.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
+const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
+const PostProcessClass := preload("res://scripts/post_process.gd")
 const CITY_BG_PATH := "res://assets/backgrounds/city.png"
 const CITY_DAY_PATH := "res://assets/backgrounds/city_day.png"
+const WC_SKYLINE := "res://assets/warped_city/bg/skyline-b.png"
+const WC_BUILDINGS := "res://assets/warped_city/bg/buildings-bg.png"
+const WC_NEAR := "res://assets/warped_city/bg/near-buildings-bg.png"
 
 var city_texture: Texture2D
 var city_day_texture: Texture2D
+var wc_skyline: Texture2D
+var wc_buildings: Texture2D
+var wc_near: Texture2D
+var wc_props := {}
 var world_time := 0.0
 var player: CombatPlayer
 var foreground: Node2D
@@ -42,6 +51,16 @@ func _ready() -> void:
 		city_texture = load(CITY_BG_PATH)
 	if ResourceLoader.exists(CITY_DAY_PATH):
 		city_day_texture = load(CITY_DAY_PATH)
+	if ResourceLoader.exists(WC_SKYLINE):
+		wc_skyline = load(WC_SKYLINE)
+	if ResourceLoader.exists(WC_BUILDINGS):
+		wc_buildings = load(WC_BUILDINGS)
+	if ResourceLoader.exists(WC_NEAR):
+		wc_near = load(WC_NEAR)
+	for prop_name in ["hotel-sign", "banner-big", "banner-neon", "banner-open", "banner-sushi", "banners", "control-box-1", "control-box-2", "antenna", "monitor-face"]:
+		var pp: String = "res://assets/warped_city/props/" + str(prop_name) + ".png"
+		if ResourceLoader.exists(pp):
+			wc_props[prop_name] = load(pp)
 	stage_definition = ContentRegistryClass.stage(stage_id)
 	player = PlayerClass.new()
 	player.setup(CyberPlayer.ViewMode.BEAT_EM_UP)
@@ -63,10 +82,39 @@ func _ready() -> void:
 	foreground.draw.connect(_draw_foreground)
 	add_child(foreground)
 	_build_room_wipe()
+	var post := PostProcessClass.new()
+	add_child(post)
+	post.configure(_post_preset())
+
+	var cinematic := CinematicOverlayClass.new()
+	add_child(cinematic)
+	cinematic.configure(_cinematic_preset())
+
 	battle_hud = BattleHUDClass.new()
 	add_child(battle_hud)
 	battle_hud.configure(stage_id, _room_count())
 	_spawn_room_wave()
+
+
+func _post_preset() -> Dictionary:
+	# Lighter touch so the detailed skyline art reads clearly.
+	match stage_id:
+		"transit":
+			return {"bloom_intensity": 0.85, "bloom_threshold": 0.56, "ca_amount": 0.0012, "contrast": 1.05, "saturation": 1.08, "grain": 0.022}
+		"foundry":
+			return {"bloom_intensity": 1.0, "bloom_threshold": 0.54, "ca_amount": 0.0013, "contrast": 1.06, "saturation": 1.1, "grain": 0.024}
+		_:
+			return {"bloom_intensity": 0.95, "bloom_threshold": 0.55, "ca_amount": 0.0013, "contrast": 1.05, "saturation": 1.12, "grain": 0.022}
+
+
+func _cinematic_preset() -> Dictionary:
+	match stage_id:
+		"transit":
+			return {"grade": Color(0.22, 0.42, 0.66, 0.06), "fog": Color(0.09, 0.16, 0.25), "fog_strength": 0.1, "particles": "rain", "count": 64, "vignette": 0.6}
+		"foundry":
+			return {"grade": Color(1.0, 0.42, 0.18, 0.07), "fog": Color(0.23, 0.11, 0.08), "fog_strength": 0.1, "particles": "embers", "count": 48, "vignette": 0.6}
+		_:
+			return {"grade": Color(0.88, 0.28, 0.6, 0.06), "fog": Color(0.2, 0.13, 0.26), "fog_strength": 0.08, "particles": "snow", "count": 44, "vignette": 0.6}
 
 
 func _process(delta: float) -> void:
@@ -218,15 +266,74 @@ func debug_clear_room() -> void:
 
 func _draw() -> void:
 	_draw_sky_and_depth()
+	_draw_city_props()
 	match stage_id:
 		"arcade": _draw_arcade()
 		"transit": _draw_transit()
 		"foundry": _draw_foundry()
 		_: _draw_arcade()
+	_draw_god_rays()
 	_draw_room_variant()
 	_draw_playfield()
+	_draw_floor_reflection()
 	_draw_room_navigation()
 	_draw_atmosphere()
+
+
+func _draw_city_props() -> void:
+	# Lit neon signage hung in the mid-distance; bloom makes it glow. Builds the
+	# layered "signs everywhere" depth of the reference street scenes.
+	if wc_props.is_empty():
+		return
+	if stage_id == "arcade":
+		var signs := [
+			["banner-big", Vector2(112, 32)],
+			["hotel-sign", Vector2(296, 40)],
+			["banner-open", Vector2(86, 58)],
+			["banner-neon", Vector2(250, 50)],
+			["banners", Vector2(424, 38)],
+			["banner-sushi", Vector2(350, 84)],
+		]
+		for s in signs:
+			var tex = wc_props.get(s[0])
+			if tex:
+				draw_texture(tex, s[1], Color(1, 1, 1))
+	# Wall tech on the side pillars for every stage.
+	if wc_props.has("control-box-1"):
+		draw_texture(wc_props["control-box-1"], Vector2(20, 96), Color(0.72, 0.74, 0.82))
+	if wc_props.has("monitor-face"):
+		draw_texture(wc_props["monitor-face"], Vector2(444, 104), Color(0.85, 0.85, 0.96))
+
+
+func _stage_light() -> Color:
+	match stage_id:
+		"transit": return Color(0.4, 0.7, 0.95)
+		"foundry": return Color(1.0, 0.55, 0.25)
+		_: return Color(0.95, 0.4, 0.7)
+
+
+func _draw_god_rays() -> void:
+	# Volumetric light shafts slanting down from off-screen sources.
+	var tint := _stage_light()
+	for i in range(5):
+		var x := 40.0 + i * 104.0 + sin(ambience_time * 0.3 + i) * 5.0
+		var sway := sin(ambience_time * 0.5 + i * 1.3) * 0.06
+		var a := 0.02 + 0.012 * sin(ambience_time * 0.8 + i * 2.0)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(x, 18), Vector2(x + 26, 18),
+			Vector2(x - 36 + sway * 60.0, 168), Vector2(x - 70 + sway * 60.0, 168),
+		]), Color(tint, maxf(0.0, a)))
+
+
+func _draw_floor_reflection() -> void:
+	# Wet-floor sheen + mirrored neon smear on the walkable plane.
+	var tint := _stage_light()
+	draw_rect(Rect2(0, 164, 480, 24), Color(tint, 0.04))
+	for i in range(9):
+		var x := 24.0 + i * 52.0 + sin(ambience_time * 0.6 + i) * 3.0
+		var h := 22.0 + (i % 3) * 8.0
+		draw_rect(Rect2(x, 168, 2, h), Color(tint, 0.05))
+		draw_rect(Rect2(x, 168, 1, h * 0.6), Color(tint, 0.05))
 
 
 func _draw_room_variant() -> void:
@@ -250,50 +357,85 @@ func _draw_sky_and_depth() -> void:
 	var day := 0.5 + 0.5 * sin(world_time * 0.057)
 	draw_rect(Rect2(0, 0, 480, 270), Color("050819").lerp(Color("2b3650"), day * 0.8))
 	draw_rect(Rect2(0, 27, 480, 142), Color("081126").lerp(Color("303c58"), day * 0.7))
-	# Distant city skyline (licensed CraftPix bg) tinted per stage mood, with the
-	# night and day variants crossfading behind the stage's midground structures.
-	if city_texture:
-		var tint := Color(0.5, 0.45, 0.6, 0.85)
-		match stage_id:
-			"arcade": tint = Color(0.54, 0.47, 0.64, 0.95)
-			"transit": tint = Color(0.34, 0.43, 0.5, 0.68)
-			"foundry": tint = Color(0.52, 0.39, 0.4, 0.66)
-		var dest := Rect2(0, 18, 480, 152)
-		draw_texture_rect(city_texture, dest, false, tint)
-		if city_day_texture and day > 0.01:
-			draw_texture_rect(city_day_texture, dest, false, Color(0.95, 0.92, 0.88, tint.a * day))
-	else:
-		for i in range(18):
-			var width := 18 + (i * 11) % 24
-			var height := 28 + (i * 19) % 68
-			var x := i * 31 - 18
-			draw_rect(Rect2(x, 169 - height, width, height), Color("0d1530"))
-	# Smog bands and a horizon line layered over the skyline for depth.
-	draw_rect(Rect2(0, 115, 480, 54), Color(0.13, 0.08, 0.22, 0.18))
-	draw_line(Vector2(0, 168), Vector2(480, 168), Color("3d254c"), 2)
+	# High-fidelity cyberpunk skyline (ansimuz "Warped City", CC0) as a layered
+	# parallax backdrop, tinted per stage mood.
+	if wc_skyline:
+		_draw_warped_skyline(day)
+	elif city_texture:
+		var tint := Color(0.54, 0.47, 0.64, 0.95)
+		draw_texture_rect(city_texture, Rect2(0, 18, 480, 152), false, tint)
+	# Smog band over the skyline for depth.
+	draw_rect(Rect2(0, 120, 480, 50), Color(0.13, 0.08, 0.22, 0.14))
+
+
+func _draw_warped_skyline(day: float) -> void:
+	var base := Color(0.64, 0.62, 0.74)
+	match stage_id:
+		"transit": base = Color(0.44, 0.54, 0.66)
+		"foundry": base = Color(0.64, 0.47, 0.42)
+	var b := 0.72 + 0.34 * day
+	var far := Color(base.r * b * 0.78, base.g * b * 0.78, base.b * b * 0.84)
+	var mid := Color(base.r * b * 0.9, base.g * b * 0.9, base.b * b * 0.94)
+	var near := Color(base.r * b, base.g * b, base.b * b)
+	var floor_y := 172.0
+	if wc_skyline:
+		var sw := wc_skyline.get_width()
+		for tx in range(0, 5):
+			draw_texture(wc_skyline, Vector2(tx * sw, floor_y - wc_skyline.get_height()), far)
+	if wc_buildings:
+		var bw := wc_buildings.get_width()
+		for tx in range(0, 5):
+			draw_texture(wc_buildings, Vector2(tx * bw, floor_y - wc_buildings.get_height()), mid)
+	if stage_id == "arcade" and wc_near:
+		draw_texture(wc_near, Vector2(0, floor_y - wc_near.get_height()), near)
 
 
 func _draw_playfield() -> void:
-	# DNF-like perspective floor: movement is horizontal plus a shallow depth lane.
+	# Wet cyberpunk street: dark asphalt that catches a neon sheen toward the
+	# front, a shallow DNF-style depth lane, and ground decals in perspective.
+	var tint := _stage_light()
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(0, 164), Vector2(480, 164), Vector2(480, 270), Vector2(0, 270)
-	]), Color("11172a"))
-	for y in [178, 198, 221, 247]:
-		draw_line(Vector2(0, y), Vector2(480, y), Color(0.14, 0.17, 0.28, 0.55), 1)
-	for x in range(-20, 520, 48):
-		draw_line(Vector2(240 + (x - 240) * 0.45, 164), Vector2(x, 270), Color(0.12, 0.15, 0.25, 0.5), 1)
-	# Walkable depth band edges are indicated through wear rather than UI rails.
-	draw_line(Vector2(0, 173), Vector2(480, 173), Color(0.25, 0.24, 0.37, 0.55), 2)
+	]), Color("0b1020"))
+	for i in range(9):
+		var t := float(i) / 8.0
+		var y := 164.0 + t * 106.0
+		draw_rect(Rect2(0, y, 480, 14), Color(tint.r, tint.g, tint.b, 0.012 + 0.04 * t))
+	for y in [180, 200, 224, 250]:
+		draw_line(Vector2(0, y), Vector2(480, y), Color(0.15, 0.18, 0.29, 0.4), 1)
+	for x in range(-20, 520, 56):
+		draw_line(Vector2(240 + (x - 240) * 0.45, 164), Vector2(x, 270), Color(0.12, 0.15, 0.26, 0.35), 1)
+	draw_line(Vector2(0, 173), Vector2(480, 173), Color(0.25, 0.24, 0.37, 0.5), 2)
 	draw_line(Vector2(0, 235), Vector2(480, 235), Color("080b17"), 3)
+	_draw_ground_decals(tint)
+
+
+func _draw_ground_decals(tint: Color) -> void:
+	# Manhole covers (dark, ribbed) and neon-catching puddles set into the street.
+	for mh in [Vector2(150, 250), Vector2(372, 242)]:
+		draw_ellipse(mh, 15, 5.5, Color(0.2, 0.22, 0.3))
+		draw_ellipse(mh, 13, 4.5, Color("0a0e1a"))
+		for gx in range(-9, 10, 4):
+			draw_line(mh + Vector2(gx, -3), mh + Vector2(gx, 3), Color(0.16, 0.18, 0.26, 0.7), 1)
+	for pd in [Vector2(92, 256), Vector2(252, 261), Vector2(420, 251)]:
+		draw_ellipse(pd, 24, 5, Color(tint.r, tint.g, tint.b, 0.06))
+		draw_ellipse(pd, 15, 3, Color(tint.r, tint.g, tint.b, 0.1))
+		draw_ellipse(pd, 7, 1.4, Color(1, 1, 1, 0.06))
+	# Faded hazard paint and a couple of cracks for wear.
+	for i in range(5):
+		var hx := 404.0 + i * 11.0
+		if i % 2 == 0:
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(hx, 230), Vector2(hx + 7, 230), Vector2(hx + 1, 241), Vector2(hx - 6, 241)
+			]), Color(0.85, 0.62, 0.22, 0.16))
+	for c in [Vector2(205, 243), Vector2(312, 257)]:
+		draw_line(c, c + Vector2(15, 4), Color(0, 0, 0, 0.32), 1)
+		draw_line(c + Vector2(6, 2), c + Vector2(11, -3), Color(0, 0, 0, 0.26), 1)
 
 
 func _draw_arcade() -> void:
-	# Abandoned shops and an inviting but optional route away from home.
-	draw_rect(Rect2(29, 72, 127, 97), Color("18162c"))
-	draw_rect(Rect2(36, 85, 113, 84), Color("241d38"))
-	draw_rect(Rect2(45, 115, 42, 54), Color("0a1020"))
-	draw_rect(Rect2(98, 104, 42, 65), Color("0a1020"))
-	_neon_sign(Rect2(43, 91, 100, 17), "NOODLE//24", Color("e6549c"), 0.8)
+	# The lit city buildings/signs now come from the Warped City backdrop; only
+	# the street-level foreground props and navigation are drawn here.
 	# Arcade cabinets emit small pools of cyan and violet.
 	for x in [180, 211, 242]:
 		draw_rect(Rect2(x, 126, 24, 43), Color("25263f"))
@@ -437,6 +579,12 @@ func _draw_foreground() -> void:
 			_draw_barrel(Vector2(49, 242), Color("765d43"))
 			_draw_barrel(Vector2(72, 247), Color("765d43"))
 			foreground.draw_rect(Rect2(375, 235, 57, 10), Color("2d2d41"))
+	# Near-black foreground silhouettes at the edges frame the shot for depth.
+	var silhouette := Color(0.04, 0.05, 0.09)
+	if wc_props.has("antenna"):
+		foreground.draw_texture(wc_props["antenna"], Vector2(0, 170), silhouette)
+	if wc_props.has("control-box-1"):
+		foreground.draw_texture(wc_props["control-box-1"], Vector2(452, 226), silhouette)
 
 
 func _draw_barrel(pos: Vector2, color: Color) -> void:
