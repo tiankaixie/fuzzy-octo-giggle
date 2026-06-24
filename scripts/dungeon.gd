@@ -298,6 +298,18 @@ func _draw_city_props() -> void:
 			var tex = wc_props.get(s[0])
 			if tex:
 				draw_texture(tex, s[1], Color(1, 1, 1))
+	elif stage_id == "transit":
+		# Interior: tech panels and monitors on the tunnel walls, cool tint.
+		for s in [["control-box-2", Vector2(54, 92)], ["monitor-face", Vector2(150, 88)], ["control-box-1", Vector2(300, 96)], ["banner-neon", Vector2(408, 84)]]:
+			var tex = wc_props.get(s[0])
+			if tex:
+				draw_texture(tex, s[1], Color(0.68, 0.78, 0.88))
+	elif stage_id == "foundry":
+		# Interior: tech panels on the industrial frame, warm tint.
+		for s in [["control-box-1", Vector2(96, 90)], ["monitor-face", Vector2(150, 94)], ["control-box-2", Vector2(332, 92)], ["banner-neon", Vector2(58, 78)]]:
+			var tex = wc_props.get(s[0])
+			if tex:
+				draw_texture(tex, s[1], Color(0.9, 0.72, 0.6))
 	# Wall tech on the side pillars for every stage.
 	if wc_props.has("control-box-1"):
 		draw_texture(wc_props["control-box-1"], Vector2(20, 96), Color(0.72, 0.74, 0.82))

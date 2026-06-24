@@ -166,7 +166,9 @@ func _perform_attack() -> void:
 	strike_time = 0.2
 	var offset := target.position - position
 	if definition.archetype == EnemyDefinition.Archetype.RANGED:
-		projectile_requested.emit(position + Vector2(facing * 10.0, -9), offset.normalized(), definition.damage, definition.knockback_force, definition.glow_color)
+		# Flat horizontal shot along the lane (no tracking) so it stays easy to
+		# read and dodge by stepping up/down in depth.
+		projectile_requested.emit(position + Vector2(facing * 10.0, -9), Vector2(facing, 0.0), definition.damage, definition.knockback_force, definition.glow_color)
 		sfx_requested.emit("shot")
 	elif absf(offset.x) < definition.attack_range + 10.0 and absf(offset.y) < 22.0:
 		if target.take_damage(definition.damage, position, definition.knockback_force):
