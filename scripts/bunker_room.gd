@@ -10,6 +10,10 @@ var level := 1
 var connected_left := false
 var connected_right := false
 var room_time := 0.0
+var above_ground := false
+var window_col := 0
+var city_texture: Texture2D
+var city_day_texture: Texture2D
 
 func setup(type: String, joins_left: bool, joins_right: bool, room_level := 1) -> void:
 	room_type = type
@@ -28,6 +32,8 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var accent: Color = definition.accent_color if definition else Color.WHITE
 	_draw_shell(accent)
+	if above_ground and city_texture:
+		_draw_city_window()
 	match room_type:
 		"rest": _draw_rest(accent)
 		"commons": _draw_commons(accent)
@@ -187,6 +193,29 @@ func _draw_airlock(accent: Color) -> void:
 	draw_rect(Rect2(55, 29, 5, 11), Color("283848"))
 	draw_rect(Rect2(57, 31, 2, 2), accent)
 	_label("SURFACE", Vector2(12, 11), accent, 6)
+
+
+func _draw_city_window() -> void:
+	# Above-ground rooms look out onto the skyline; the slice is offset per column
+	# so the view reads as one continuous city across the top floor.
+	var wx := 7.0
+	var wy := 12.0
+	var ww := 54.0
+	var wh := 21.0
+	var src_x := clampf(86.0 + float(window_col) * 56.0, 0.0, float(city_texture.get_width()) - 156.0)
+	var src := Rect2(src_x, 66, 156, 78)
+	var dest := Rect2(wx, wy, ww, wh)
+	var day := 0.5 + 0.5 * sin(room_time * 0.057)
+	draw_texture_rect_region(city_texture, dest, src, Color(0.72, 0.74, 0.88))
+	if city_day_texture and day > 0.01:
+		draw_texture_rect_region(city_day_texture, dest, src, Color(0.95, 0.92, 0.88, day))
+	draw_rect(Rect2(wx, wy, ww, wh), Color(0.42, 0.6, 0.82, 0.05))
+	draw_line(Vector2(wx + 4, wy + 3), Vector2(wx + 17, wy + wh - 2), Color(0.7, 0.8, 0.95, 0.06), 2)
+	draw_rect(Rect2(wx + ww / 2.0 - 1.0, wy, 2, wh), Color("23263a"))
+	draw_rect(Rect2(wx, wy + wh / 2.0 - 1.0, ww, 2), Color("23263a"))
+	draw_rect(Rect2(wx, wy, ww, wh), Color("262a3e"), false, 2)
+	draw_rect(Rect2(wx - 1, wy + wh, ww + 2, 3), Color("3a3d54"))
+	draw_rect(Rect2(wx - 1, wy + wh, ww + 2, 1), Color("525873"))
 
 
 func _glow(center: Vector2, color: Color, radius: float) -> void:

@@ -9,7 +9,9 @@ const ProjectileClass := preload("res://scripts/combat/combat_projectile.gd")
 const CombatAudioClass := preload("res://scripts/combat/combat_audio.gd")
 const BattleHUDClass := preload("res://scripts/battle_hud.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
+const CITY_BG_PATH := "res://assets/backgrounds/city.png"
 
+var city_texture: Texture2D
 var player: CombatPlayer
 var foreground: Node2D
 var transition_layer: CanvasLayer
@@ -33,6 +35,8 @@ var result_state := ""
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("050819"))
+	if ResourceLoader.exists(CITY_BG_PATH):
+		city_texture = load(CITY_BG_PATH)
 	stage_definition = ContentRegistryClass.stage(stage_id)
 	player = PlayerClass.new()
 	player.setup(CyberPlayer.ViewMode.BEAT_EM_UP)
@@ -238,16 +242,23 @@ func _draw_room_variant() -> void:
 
 func _draw_sky_and_depth() -> void:
 	draw_rect(Rect2(0, 0, 480, 270), Color("050819"))
-	# Distant city silhouettes establish a side-on horizon.
 	draw_rect(Rect2(0, 27, 480, 142), Color("081126"))
-	for i in range(18):
-		var width := 18 + (i * 11) % 24
-		var height := 28 + (i * 19) % 68
-		var x := i * 31 - 18
-		draw_rect(Rect2(x, 169 - height, width, height), Color("0d1530"))
-		if i % 3 != 0:
-			draw_rect(Rect2(x + 5, 177 - height, 2, 3), Color(0.22, 0.53, 0.65, 0.23))
-	# Smog bands and a broken magenta skyline glow.
+	# Distant city skyline (licensed CraftPix bg) tinted per stage mood, giving a
+	# refined horizon behind the stage's own midground structures.
+	if city_texture:
+		var tint := Color(0.5, 0.45, 0.6, 0.85)
+		match stage_id:
+			"arcade": tint = Color(0.54, 0.47, 0.64, 0.95)
+			"transit": tint = Color(0.34, 0.43, 0.5, 0.68)
+			"foundry": tint = Color(0.52, 0.39, 0.4, 0.66)
+		draw_texture_rect(city_texture, Rect2(0, 18, 480, 152), false, tint)
+	else:
+		for i in range(18):
+			var width := 18 + (i * 11) % 24
+			var height := 28 + (i * 19) % 68
+			var x := i * 31 - 18
+			draw_rect(Rect2(x, 169 - height, width, height), Color("0d1530"))
+	# Smog bands and a horizon line layered over the skyline for depth.
 	draw_rect(Rect2(0, 115, 480, 54), Color(0.13, 0.08, 0.22, 0.18))
 	draw_line(Vector2(0, 168), Vector2(480, 168), Color("3d254c"), 2)
 

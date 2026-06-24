@@ -16,6 +16,7 @@ const SAVE_PATH := "user://bunker_layout.json"
 # cells become windows onto the city skyline (licensed CraftPix bg, OGA-BY 3.0).
 const GROUND_Y := 100.0
 const CITY_BG_PATH := "res://assets/backgrounds/city.png"
+const CITY_DAY_PATH := "res://assets/backgrounds/city_day.png"
 
 var player: CyberPlayer
 var layout: Array = []
@@ -37,12 +38,15 @@ var status_until := 0.0
 var salvage := 160
 var last_loot := 0
 var city_texture: Texture2D
+var city_day_texture: Texture2D
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("070812"))
 	if ResourceLoader.exists(CITY_BG_PATH):
 		city_texture = load(CITY_BG_PATH)
+	if ResourceLoader.exists(CITY_DAY_PATH):
+		city_day_texture = load(CITY_DAY_PATH)
 	room_definitions = ContentRegistryClass.buildable_rooms()
 	for definition: RoomDefinition in room_definitions:
 		buildable_types.append(definition.id)
@@ -215,6 +219,10 @@ func _rebuild_rooms() -> void:
 			var left_join := col > 0 and get_room(Vector2i(col - 1, row)) == type and type != "airlock"
 			var right_join := col < COLS - 1 and get_room(Vector2i(col + 1, row)) == type and type != "airlock"
 			room.position = GRID_ORIGIN + Vector2(col, row) * CELL_SIZE
+			room.city_texture = city_texture
+			room.city_day_texture = city_day_texture
+			room.above_ground = row == 0 and type != "airlock"
+			room.window_col = col
 			room.setup(type, left_join, right_join, get_room_level(cell))
 			room.z_index = 2
 			add_child(room)
@@ -327,23 +335,27 @@ func _show_status(text: String) -> void:
 
 
 func _draw() -> void:
-	# --- Sky above ground, with a faint gradient toward the horizon ---
-	draw_rect(Rect2(0, 0, 480, GROUND_Y + 2), Color("0b0f22"))
+	# --- Sky above ground, lerping across a slow day/night cycle ---
+	var day := _day_factor()
+	draw_rect(Rect2(0, 0, 480, GROUND_Y + 2), Color("0b0f22").lerp(Color("39465f"), day))
 	for i in range(9):
 		var t := float(i) / 8.0
-		draw_rect(Rect2(0, i * 11, 480, 12), Color(0.07 + 0.05 * t, 0.07 + 0.04 * t, 0.14 + 0.07 * t, 0.5))
+		draw_rect(Rect2(0, i * 11, 480, 12), Color(0.07 + 0.05 * t, 0.07 + 0.04 * t, 0.14 + 0.07 * t, 0.5 * (1.0 - day * 0.55)))
 	# Distant cyberpunk skyline (licensed CraftPix bg) seen above ground and
-	# through the top-floor windows. Native scale + cool tint so it recedes.
+	# through the top-floor windows; night and day variants crossfade.
 	if city_texture:
 		draw_texture(city_texture, Vector2(-48, -54), Color(0.72, 0.74, 0.88))
+	if city_day_texture and day > 0.01:
+		draw_texture(city_day_texture, Vector2(-48, -54), Color(0.95, 0.92, 0.88, day))
 	draw_rect(Rect2(0, GROUND_Y - 18, 480, 18), Color(0.55, 0.6, 0.82, 0.06))
 	# Exterior street level at the base of the windows, so the city sits on
 	# ground and the surface line reads clearly.
-	draw_rect(Rect2(8, 92, 464, 8), Color("121624"))
+	draw_rect(Rect2(8, 92, 464, 8), Color("121624").lerp(Color("2a3147"), day))
 	draw_rect(Rect2(8, 92, 464, 1), Color("3c3a52"))
 	for sx in range(44, 470, 82):
 		draw_rect(Rect2(sx, 85, 1, 7), Color("5a6478"))
-		_glow_at(Vector2(sx, 85), Color(1.0, 0.78, 0.42), 4.0)
+		if day < 0.65:
+			_glow_at(Vector2(sx, 85), Color(1.0, 0.78, 0.42), 4.0 * (1.0 - day))
 
 	# --- Buried earth below the ground line ---
 	draw_rect(Rect2(0, GROUND_Y, 480, 270.0 - GROUND_Y), Color("0d1020"))
@@ -366,8 +378,9 @@ func _draw() -> void:
 	draw_rect(Rect2(468, 34, 4, 190), Color("2a2d40"))
 	draw_rect(Rect2(8, 220, 464, 8), Color("2f3146"))
 
-	# Surface entrance hut capping the lift, set against the skyline.
+	# Surface entrance hut + fortified rooftop kit, set against the skyline.
 	_draw_surface_entrance()
+	_draw_rooftop_props()
 
 	# Permanent lift shaft lets the player reach every expandable floor.
 	draw_rect(Rect2(15, 42, 29, 174), Color("111827"))
@@ -401,6 +414,11 @@ func _draw() -> void:
 		_label(lift_hint, Vector2(50, 235), Color("e6a466"), 7)
 
 
+func _day_factor() -> float:
+	# Slow ambient day/night cycle (~110s period); 0 = night, 1 = day.
+	return 0.5 + 0.5 * sin(ambience_time * 0.057)
+
+
 func _draw_surface_entrance() -> void:
 	# Hardened entrance hut on the roof above the lift, with a blinking beacon.
 	var ex := 12.0
@@ -419,6 +437,30 @@ func _draw_surface_entrance() -> void:
 		_glow_at(Vector2(ex + 44, 3), Color("ff5a52"), 5.0)
 	draw_circle(Vector2(ex + 44, 3), 2.0, Color("ff5a52") if on else Color("4a2526"))
 	_label("ENTRY", Vector2(ex + 4, 12), Color("8fb0bf"), 5)
+
+
+func _draw_rooftop_props() -> void:
+	# Hardware sitting on the roof slab (y~34), silhouetted against the skyline.
+	# Satellite dish.
+	draw_rect(Rect2(168, 30, 4, 5), Color("33384e"))
+	draw_circle(Vector2(170, 26), 6.0, Color("2a2f44"))
+	draw_circle(Vector2(170, 26), 5.0, Color("3c4259"))
+	draw_line(Vector2(170, 26), Vector2(174, 21), Color("596184"), 1)
+	draw_circle(Vector2(174, 21), 1.0, Color("8fb0bf"))
+	# Vent / AC box.
+	draw_rect(Rect2(246, 24, 22, 11), Color("262a3c"))
+	draw_rect(Rect2(246, 24, 22, 2), Color("3a3f57"))
+	for vx in range(249, 266, 4):
+		draw_rect(Rect2(vx, 28, 2, 5), Color("12151f"))
+	# Antenna mast cluster with a blinking tip.
+	draw_rect(Rect2(330, 18, 2, 17), Color("4a5066"))
+	draw_line(Vector2(331, 22), Vector2(324, 18), Color("3c4156"), 1)
+	draw_line(Vector2(331, 22), Vector2(338, 18), Color("3c4156"), 1)
+	var blink := fmod(ambience_time, 1.6) < 0.8
+	draw_circle(Vector2(331, 17), 1.5, Color("6ad6ff") if blink else Color("294452"))
+	# Comms pylon on the far right.
+	draw_rect(Rect2(430, 22, 2, 13), Color("434860"))
+	draw_rect(Rect2(426, 22, 10, 2), Color("363b51"))
 
 
 func _draw_window_cell(cell_pos: Vector2) -> void:
