@@ -13,9 +13,15 @@ const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
 const PostProcessClass := preload("res://scripts/post_process.gd")
 const CITY_BG_PATH := "res://assets/backgrounds/city.png"
 const CITY_DAY_PATH := "res://assets/backgrounds/city_day.png"
+const WC_SKYLINE := "res://assets/warped_city/bg/skyline-b.png"
+const WC_BUILDINGS := "res://assets/warped_city/bg/buildings-bg.png"
+const WC_NEAR := "res://assets/warped_city/bg/near-buildings-bg.png"
 
 var city_texture: Texture2D
 var city_day_texture: Texture2D
+var wc_skyline: Texture2D
+var wc_buildings: Texture2D
+var wc_near: Texture2D
 var world_time := 0.0
 var player: CombatPlayer
 var foreground: Node2D
@@ -44,6 +50,12 @@ func _ready() -> void:
 		city_texture = load(CITY_BG_PATH)
 	if ResourceLoader.exists(CITY_DAY_PATH):
 		city_day_texture = load(CITY_DAY_PATH)
+	if ResourceLoader.exists(WC_SKYLINE):
+		wc_skyline = load(WC_SKYLINE)
+	if ResourceLoader.exists(WC_BUILDINGS):
+		wc_buildings = load(WC_BUILDINGS)
+	if ResourceLoader.exists(WC_NEAR):
+		wc_near = load(WC_NEAR)
 	stage_definition = ContentRegistryClass.stage(stage_id)
 	player = PlayerClass.new()
 	player.setup(CyberPlayer.ViewMode.BEAT_EM_UP)
@@ -80,23 +92,24 @@ func _ready() -> void:
 
 
 func _post_preset() -> Dictionary:
+	# Lighter touch so the detailed skyline art reads clearly.
 	match stage_id:
 		"transit":
-			return {"bloom_intensity": 0.95, "bloom_threshold": 0.5, "ca_amount": 0.0016, "contrast": 1.08, "saturation": 1.1, "grain": 0.045}
+			return {"bloom_intensity": 0.85, "bloom_threshold": 0.56, "ca_amount": 0.0012, "contrast": 1.05, "saturation": 1.08, "grain": 0.022}
 		"foundry":
-			return {"bloom_intensity": 1.15, "bloom_threshold": 0.48, "ca_amount": 0.0018, "contrast": 1.1, "saturation": 1.12, "grain": 0.05}
+			return {"bloom_intensity": 1.0, "bloom_threshold": 0.54, "ca_amount": 0.0013, "contrast": 1.06, "saturation": 1.1, "grain": 0.024}
 		_:
-			return {"bloom_intensity": 1.1, "bloom_threshold": 0.5, "ca_amount": 0.0018, "contrast": 1.08, "saturation": 1.16, "grain": 0.045}
+			return {"bloom_intensity": 0.95, "bloom_threshold": 0.55, "ca_amount": 0.0013, "contrast": 1.05, "saturation": 1.12, "grain": 0.022}
 
 
 func _cinematic_preset() -> Dictionary:
 	match stage_id:
 		"transit":
-			return {"grade": Color(0.22, 0.42, 0.66, 0.10), "fog": Color(0.09, 0.16, 0.25), "fog_strength": 0.16, "particles": "rain", "count": 70}
+			return {"grade": Color(0.22, 0.42, 0.66, 0.06), "fog": Color(0.09, 0.16, 0.25), "fog_strength": 0.1, "particles": "rain", "count": 64, "vignette": 0.6}
 		"foundry":
-			return {"grade": Color(1.0, 0.42, 0.18, 0.10), "fog": Color(0.23, 0.11, 0.08), "fog_strength": 0.15, "particles": "embers", "count": 52}
+			return {"grade": Color(1.0, 0.42, 0.18, 0.07), "fog": Color(0.23, 0.11, 0.08), "fog_strength": 0.1, "particles": "embers", "count": 48, "vignette": 0.6}
 		_:
-			return {"grade": Color(0.88, 0.28, 0.6, 0.1), "fog": Color(0.23, 0.14, 0.28), "fog_strength": 0.13, "particles": "snow", "count": 48}
+			return {"grade": Color(0.88, 0.28, 0.6, 0.06), "fog": Color(0.2, 0.13, 0.26), "fog_strength": 0.08, "particles": "snow", "count": 44, "vignette": 0.6}
 
 
 func _process(delta: float) -> void:
@@ -313,27 +326,37 @@ func _draw_sky_and_depth() -> void:
 	var day := 0.5 + 0.5 * sin(world_time * 0.057)
 	draw_rect(Rect2(0, 0, 480, 270), Color("050819").lerp(Color("2b3650"), day * 0.8))
 	draw_rect(Rect2(0, 27, 480, 142), Color("081126").lerp(Color("303c58"), day * 0.7))
-	# Distant city skyline (licensed CraftPix bg) tinted per stage mood, with the
-	# night and day variants crossfading behind the stage's midground structures.
-	if city_texture:
-		var tint := Color(0.5, 0.45, 0.6, 0.85)
-		match stage_id:
-			"arcade": tint = Color(0.54, 0.47, 0.64, 0.95)
-			"transit": tint = Color(0.34, 0.43, 0.5, 0.68)
-			"foundry": tint = Color(0.52, 0.39, 0.4, 0.66)
-		var dest := Rect2(0, 18, 480, 152)
-		draw_texture_rect(city_texture, dest, false, tint)
-		if city_day_texture and day > 0.01:
-			draw_texture_rect(city_day_texture, dest, false, Color(0.95, 0.92, 0.88, tint.a * day))
-	else:
-		for i in range(18):
-			var width := 18 + (i * 11) % 24
-			var height := 28 + (i * 19) % 68
-			var x := i * 31 - 18
-			draw_rect(Rect2(x, 169 - height, width, height), Color("0d1530"))
-	# Smog bands and a horizon line layered over the skyline for depth.
-	draw_rect(Rect2(0, 115, 480, 54), Color(0.13, 0.08, 0.22, 0.18))
-	draw_line(Vector2(0, 168), Vector2(480, 168), Color("3d254c"), 2)
+	# High-fidelity cyberpunk skyline (ansimuz "Warped City", CC0) as a layered
+	# parallax backdrop, tinted per stage mood.
+	if wc_skyline:
+		_draw_warped_skyline(day)
+	elif city_texture:
+		var tint := Color(0.54, 0.47, 0.64, 0.95)
+		draw_texture_rect(city_texture, Rect2(0, 18, 480, 152), false, tint)
+	# Smog band over the skyline for depth.
+	draw_rect(Rect2(0, 120, 480, 50), Color(0.13, 0.08, 0.22, 0.14))
+
+
+func _draw_warped_skyline(day: float) -> void:
+	var base := Color(0.64, 0.62, 0.74)
+	match stage_id:
+		"transit": base = Color(0.44, 0.54, 0.66)
+		"foundry": base = Color(0.64, 0.47, 0.42)
+	var b := 0.72 + 0.34 * day
+	var far := Color(base.r * b * 0.78, base.g * b * 0.78, base.b * b * 0.84)
+	var mid := Color(base.r * b * 0.9, base.g * b * 0.9, base.b * b * 0.94)
+	var near := Color(base.r * b, base.g * b, base.b * b)
+	var floor_y := 172.0
+	if wc_skyline:
+		var sw := wc_skyline.get_width()
+		for tx in range(0, 5):
+			draw_texture(wc_skyline, Vector2(tx * sw, floor_y - wc_skyline.get_height()), far)
+	if wc_buildings:
+		var bw := wc_buildings.get_width()
+		for tx in range(0, 5):
+			draw_texture(wc_buildings, Vector2(tx * bw, floor_y - wc_buildings.get_height()), mid)
+	if stage_id == "arcade" and wc_near:
+		draw_texture(wc_near, Vector2(0, floor_y - wc_near.get_height()), near)
 
 
 func _draw_playfield() -> void:
@@ -351,12 +374,8 @@ func _draw_playfield() -> void:
 
 
 func _draw_arcade() -> void:
-	# Abandoned shops and an inviting but optional route away from home.
-	draw_rect(Rect2(29, 72, 127, 97), Color("18162c"))
-	draw_rect(Rect2(36, 85, 113, 84), Color("241d38"))
-	draw_rect(Rect2(45, 115, 42, 54), Color("0a1020"))
-	draw_rect(Rect2(98, 104, 42, 65), Color("0a1020"))
-	_neon_sign(Rect2(43, 91, 100, 17), "NOODLE//24", Color("e6549c"), 0.8)
+	# The lit city buildings/signs now come from the Warped City backdrop; only
+	# the street-level foreground props and navigation are drawn here.
 	# Arcade cabinets emit small pools of cyan and violet.
 	for x in [180, 211, 242]:
 		draw_rect(Rect2(x, 126, 24, 43), Color("25263f"))
