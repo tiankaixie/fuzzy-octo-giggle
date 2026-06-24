@@ -32,4 +32,6 @@ godot --path .
 
 ## 美术素材
 
-地堡 / 地下城场景、HUD 与特效均为程序化绘制。角色 sprite 使用 CraftPix 的 "3 Cyberpunk Characters"（经 OpenGameArt 分发，授权 **OGA-BY 3.0**，需署名），位于 `assets/cyberpunk_chars/`，署名见该目录下的 `CREDITS.md`。`scripts/art/character_frames.gd` 将动画条切成 `SpriteFrames`，玩家与敌人通过 `AnimatedSprite2D` 播放 idle/run/attack/hurt/death。
+地堡 / 地下城场景、HUD 与特效均为程序化绘制。地堡为半地上半地下结构：顶层在地面之上，透过窗户可见城市天际线，并设有地面入口；其余楼层埋于地下。
+
+角色 sprite 使用 CraftPix 的 "3 Cyberpunk Characters"（经 OpenGameArt 分发，授权 **OGA-BY 3.0**，需署名），位于 `assets/cyberpunk_chars/`；地堡窗外的城市天际线使用 CraftPix 的 "Cyberpunk Backgrounds Pixel Art"（同为 **OGA-BY 3.0**），位于 `assets/backgrounds/`。两处署名分别见各目录下的 `CREDITS.md`。`scripts/art/character_frames.gd` 将动画条切成 `SpriteFrames`，玩家与敌人通过 `AnimatedSprite2D` 播放 idle/run/attack/hurt/death。

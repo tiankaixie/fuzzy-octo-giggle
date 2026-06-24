@@ -12,6 +12,10 @@ const ROWS := 3
 const CELL_SIZE := Vector2(68, 58)
 const GRID_ORIGIN := Vector2(48, 42)
 const SAVE_PATH := "user://bunker_layout.json"
+# The top floor sits above ground; everything below GROUND_Y is buried. Row 0
+# cells become windows onto the city skyline (licensed CraftPix bg, OGA-BY 3.0).
+const GROUND_Y := 100.0
+const CITY_BG_PATH := "res://assets/backgrounds/city.png"
 
 var player: CyberPlayer
 var layout: Array = []
@@ -32,10 +36,13 @@ var status_text := ""
 var status_until := 0.0
 var salvage := 160
 var last_loot := 0
+var city_texture: Texture2D
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("070812"))
+	if ResourceLoader.exists(CITY_BG_PATH):
+		city_texture = load(CITY_BG_PATH)
 	room_definitions = ContentRegistryClass.buildable_rooms()
 	for definition: RoomDefinition in room_definitions:
 		buildable_types.append(definition.id)
@@ -320,17 +327,47 @@ func _show_status(text: String) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(0, 0, 480, 270), Color("070812"))
-	# Excavated earth and the concrete bunker shell.
-	draw_rect(Rect2(0, 17, 480, 211), Color("121426"))
-	for x in range(0, 480, 19):
-		var y := 20 + ((x * 7) % 11)
-		draw_rect(Rect2(x, y, 13, 3), Color("242039"))
-	for y in range(38, 225, 19):
-		draw_rect(Rect2(4, y, 16, 4), Color("201b32"))
-		draw_rect(Rect2(458, y + 7, 19, 4), Color("201b32"))
-	draw_rect(Rect2(8, 34, 464, 194), Color("292b3e"))
-	draw_rect(Rect2(12, 38, 456, 186), Color("0b0e1b"))
+	# --- Sky above ground, with a faint gradient toward the horizon ---
+	draw_rect(Rect2(0, 0, 480, GROUND_Y + 2), Color("0b0f22"))
+	for i in range(9):
+		var t := float(i) / 8.0
+		draw_rect(Rect2(0, i * 11, 480, 12), Color(0.07 + 0.05 * t, 0.07 + 0.04 * t, 0.14 + 0.07 * t, 0.5))
+	# Distant cyberpunk skyline (licensed CraftPix bg) seen above ground and
+	# through the top-floor windows. Native scale + cool tint so it recedes.
+	if city_texture:
+		draw_texture(city_texture, Vector2(-48, -54), Color(0.72, 0.74, 0.88))
+	draw_rect(Rect2(0, GROUND_Y - 18, 480, 18), Color(0.55, 0.6, 0.82, 0.06))
+	# Exterior street level at the base of the windows, so the city sits on
+	# ground and the surface line reads clearly.
+	draw_rect(Rect2(8, 92, 464, 8), Color("121624"))
+	draw_rect(Rect2(8, 92, 464, 1), Color("3c3a52"))
+	for sx in range(44, 470, 82):
+		draw_rect(Rect2(sx, 85, 1, 7), Color("5a6478"))
+		_glow_at(Vector2(sx, 85), Color(1.0, 0.78, 0.42), 4.0)
+
+	# --- Buried earth below the ground line ---
+	draw_rect(Rect2(0, GROUND_Y, 480, 270.0 - GROUND_Y), Color("0d1020"))
+	draw_rect(Rect2(0, GROUND_Y - 1, 480, 2), Color("60505c"))
+	draw_rect(Rect2(0, GROUND_Y + 1, 480, 5), Color("241d31"))
+	for x in range(0, 480, 17):
+		var ey := GROUND_Y + 12.0 + float((x * 13) % 150)
+		draw_rect(Rect2(x, ey, 11, 3), Color("17152a"))
+	for y in range(int(GROUND_Y) + 8, 222, 19):
+		draw_rect(Rect2(4, y, 15, 4), Color("1d1830"))
+		draw_rect(Rect2(460, y + 7, 17, 4), Color("1d1830"))
+
+	# --- Concrete shell: border walls only, so the top floor stays open to the
+	# city while the buried floors get an opaque back wall. ---
+	draw_rect(Rect2(12, 38, 456, GROUND_Y - 38), Color(0.07, 0.1, 0.18, 0.16))
+	draw_rect(Rect2(12, GROUND_Y, 456, 220.0 - GROUND_Y), Color("0b0e1b"))
+	draw_rect(Rect2(8, 34, 464, 4), Color("33364c"))
+	draw_rect(Rect2(8, 34, 464, 1), Color("565a78"))
+	draw_rect(Rect2(8, 34, 4, 190), Color("2a2d40"))
+	draw_rect(Rect2(468, 34, 4, 190), Color("2a2d40"))
+	draw_rect(Rect2(8, 220, 464, 8), Color("2f3146"))
+
+	# Surface entrance hut capping the lift, set against the skyline.
+	_draw_surface_entrance()
 
 	# Permanent lift shaft lets the player reach every expandable floor.
 	draw_rect(Rect2(15, 42, 29, 174), Color("111827"))
@@ -344,20 +381,69 @@ func _draw() -> void:
 		draw_rect(Rect2(12, fy + 54, 456, 4), Color("555269"))
 		draw_rect(Rect2(17, fy + 55, 24, 2), Color("f0a158") if row == current_floor else Color("5c5366"))
 
-	# Empty cells read as raw excavated structure waiting to be built out:
-	# recessed rock with exposed girders, conduit and rubble rather than a flat box.
+	# Empty cells: the above-ground row reads as windows onto the city; buried
+	# rows read as raw excavated structure.
 	for row in range(ROWS):
 		for col in range(COLS):
 			if get_room(Vector2i(col, row)) != "":
 				continue
-			_draw_empty_cell(GRID_ORIGIN + Vector2(col, row) * CELL_SIZE, col, row)
+			var cell_pos := GRID_ORIGIN + Vector2(col, row) * CELL_SIZE
+			if row == 0:
+				_draw_window_cell(cell_pos)
+			else:
+				_draw_empty_cell(cell_pos, col, row)
 
-	# Bunker identity is diegetic; only build mode adds an editing overlay.
-	_label("BUNKER 07 // HABITAT GRID", Vector2(15, 31), Color("7a7187"), 7)
-	_label("SALVAGE " + str(salvage), Vector2(393, 31), Color("e3b669"), 7)
+	# Bunker identity, on small plates so it reads over the sky.
+	_draw_plate_label(Vector2(74, 5), "BUNKER 07 // HABITAT GRID", Color("9aa6c0"))
+	_draw_plate_label(Vector2(393, 5), "SALVAGE " + str(salvage), Color("e3b669"))
 	var lift_hint := "W/S  CHANGE FLOOR" if player and player.position.x < 64.0 and not build_mode else ""
 	if lift_hint != "":
-		_label(lift_hint, Vector2(15, 235), Color("e6a466"), 7)
+		_label(lift_hint, Vector2(50, 235), Color("e6a466"), 7)
+
+
+func _draw_surface_entrance() -> void:
+	# Hardened entrance hut on the roof above the lift, with a blinking beacon.
+	var ex := 12.0
+	draw_rect(Rect2(ex - 2, 30, 56, 5), Color("2c2f44"))
+	draw_rect(Rect2(ex, 14, 50, 20), Color("23263a"))
+	draw_rect(Rect2(ex, 14, 50, 3), Color("3b4059"))
+	draw_rect(Rect2(ex + 2, 17, 46, 17), Color("181b2c"))
+	draw_rect(Rect2(ex + 16, 19, 15, 15), Color("0c1018"))
+	draw_rect(Rect2(ex + 16, 19, 15, 2), Color("4a5168"))
+	draw_rect(Rect2(ex + 22, 25, 2, 6), Color("55ddcd"))
+	for i in range(6):
+		draw_rect(Rect2(ex + 2 + i * 8, 31, 5, 3), Color("e0a24a") if i % 2 == 0 else Color("16161f"))
+	draw_line(Vector2(ex + 44, 14), Vector2(ex + 44, 3), Color("4a5060"), 1)
+	var on := fmod(ambience_time, 1.4) < 0.7
+	if on:
+		_glow_at(Vector2(ex + 44, 3), Color("ff5a52"), 5.0)
+	draw_circle(Vector2(ex + 44, 3), 2.0, Color("ff5a52") if on else Color("4a2526"))
+	_label("ENTRY", Vector2(ex + 4, 12), Color("8fb0bf"), 5)
+
+
+func _draw_window_cell(cell_pos: Vector2) -> void:
+	# A reinforced window onto the skyline (the city is already drawn behind).
+	var ox := cell_pos.x + 2.0
+	var oy := cell_pos.y + 3.0
+	draw_rect(Rect2(ox, oy, 64, 52), Color(0.42, 0.6, 0.82, 0.05))
+	draw_line(Vector2(ox + 6, oy + 4), Vector2(ox + 22, oy + 34), Color(0.65, 0.78, 0.92, 0.05), 2)
+	draw_rect(Rect2(ox + 31, oy, 2, 52), Color("23263a"))
+	draw_rect(Rect2(ox, oy + 25, 64, 2), Color("23263a"))
+	draw_rect(Rect2(ox, oy, 64, 52), Color("2a2d40"), false, 2)
+	draw_rect(Rect2(ox - 1, oy + 50, 66, 4), Color("3a3d54"))
+	draw_rect(Rect2(ox - 1, oy + 50, 66, 1), Color("525873"))
+
+
+func _glow_at(center: Vector2, color: Color, radius: float) -> void:
+	for i in range(3, 0, -1):
+		draw_circle(center, radius * float(i) / 3.0, Color(color, 0.05 * (4 - i)))
+
+
+func _draw_plate_label(pos: Vector2, text: String, color: Color) -> void:
+	var width := float(text.length()) * 4.2 + 8.0
+	draw_rect(Rect2(pos.x, pos.y, width, 13), Color(0.03, 0.05, 0.11, 0.72))
+	draw_rect(Rect2(pos.x, pos.y + 13, width, 1), Color(color, 0.5))
+	_label(text, pos + Vector2(4, 10), color, 7)
 
 
 func _draw_overlay() -> void:
