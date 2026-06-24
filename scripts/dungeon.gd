@@ -76,6 +76,7 @@ func _ready() -> void:
 	add_child(combat_fx)
 	player.hit_landed.connect(func(p, amount): combat_fx.hit(p, amount, Color(1.0, 0.95, 0.6)))
 	player.damaged.connect(func(amount): combat_fx.player_hit(player.position + Vector2(0, -16), amount))
+	player.shoot_requested.connect(_spawn_player_shot)
 
 	combat_audio = CombatAudioClass.new()
 	add_child(combat_audio)
@@ -223,6 +224,19 @@ func _spawn_projectile(origin: Vector2, direction: Vector2, damage: float, knock
 	var projectile: CombatProjectile = ProjectileClass.new()
 	projectile.setup(origin, direction, player, damage, knockback, color)
 	add_child(projectile)
+
+
+func _spawn_player_shot(origin: Vector2, direction: Vector2, damage: float, knockback: float) -> void:
+	var shot: CombatProjectile = ProjectileClass.new()
+	shot.setup(origin, direction, null, damage, knockback, Color(1.0, 0.86, 0.5), true)
+	shot.struck.connect(_on_player_shot_hit)
+	add_child(shot)
+
+
+func _on_player_shot_hit(pos: Vector2, amount: int, _tint: Color) -> void:
+	combat_fx.hit(pos, amount, Color(1.0, 0.95, 0.6))
+	_play_sfx("hit")
+	_on_impact(4.0, 0.035)
 
 
 func _on_enemy_defeated(_enemy: CombatEnemy, loot: int) -> void:

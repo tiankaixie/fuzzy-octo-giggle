@@ -36,3 +36,44 @@ static func get_frames(character_id: String) -> SpriteFrames:
 		SpriteSheetClass.add_strip(sf, anim, texture, FRAME, FRAME, spec[2], spec[3], spec[1])
 	_cache[character_id] = sf
 	return sf
+
+
+# Warped City player (ansimuz, CC0): one PNG per frame under
+# assets/warped_city/player/<anim>/. Ranged gunner — attack states use "shoot".
+const WC_PLAYER_DIR := "res://assets/warped_city/player/"
+const WC_ANIMS := {
+	"idle": [4.0, 7.0, true],
+	"run": [8.0, 13.0, true],
+	"shoot": [1.0, 14.0, false],
+	"jump": [4.0, 12.0, false],
+	"hurt": [1.0, 9.0, false],
+}
+static var _wc_player: SpriteFrames
+
+
+static func get_warped_player() -> SpriteFrames:
+	if _wc_player:
+		return _wc_player
+	var sf := SpriteFrames.new()
+	sf.remove_animation("default")
+	for anim in WC_ANIMS:
+		var spec: Array = WC_ANIMS[anim]
+		sf.add_animation(anim)
+		sf.set_animation_speed(anim, spec[1])
+		sf.set_animation_loop(anim, spec[2])
+		for frame_path in _wc_frame_paths(WC_PLAYER_DIR + anim):
+			sf.add_frame(anim, load(frame_path))
+	_wc_player = sf
+	return sf
+
+
+static func _wc_frame_paths(dir_path: String) -> Array:
+	var out: Array = []
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return out
+	for f in dir.get_files():
+		if f.ends_with(".png"):
+			out.append(dir_path + "/" + f)
+	out.sort()
+	return out

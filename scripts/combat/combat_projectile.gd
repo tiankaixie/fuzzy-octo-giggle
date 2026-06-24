@@ -1,24 +1,30 @@
 class_name CombatProjectile
 extends Node2D
 
+signal struck(world_pos: Vector2, amount: int, tint: Color)
+
 var direction := Vector2.LEFT
 var speed := 128.0
 var damage := 8.0
 var knockback := 22.0
 var target: Node2D
+var from_player := false
 var lifetime := 2.2
 var color := Color("5be4d2")
 var phase := 0.0
 var trail: Array[Vector2] = []
 
 
-func setup(origin: Vector2, aim_direction: Vector2, victim: Node2D, amount: float, force: float, tint: Color) -> void:
+func setup(origin: Vector2, aim_direction: Vector2, victim: Node2D, amount: float, force: float, tint: Color, player_shot := false) -> void:
 	position = origin
 	direction = aim_direction.normalized()
 	target = victim
 	damage = amount
 	knockback = force
 	color = tint
+	from_player = player_shot
+	if player_shot:
+		speed = 200.0
 
 
 func _ready() -> void:
@@ -32,7 +38,16 @@ func _physics_process(delta: float) -> void:
 		trail.pop_back()
 	position += direction * speed * delta
 	lifetime -= delta
-	if is_instance_valid(target) and position.distance_to(target.position) < 11.0:
+	if from_player:
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(enemy) or enemy.dead:
+				continue
+			if position.distance_to(enemy.position + Vector2(0, -12)) < 14.0:
+				if enemy.take_damage(damage, position - direction * 8.0, knockback):
+					struck.emit(enemy.position + Vector2(0, -14), int(round(damage)), color)
+				queue_free()
+				return
+	elif is_instance_valid(target) and position.distance_to(target.position) < 11.0:
 		if target.take_damage(damage, position - direction * 8.0, knockback):
 			queue_free()
 			return

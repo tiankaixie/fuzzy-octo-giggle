@@ -97,16 +97,18 @@ func _run() -> void:
 	await create_timer(0.16, true, false, true).timeout
 	_assert(target.health < enemy_health_before, "Basic attack damages a target")
 	_assert(absf(target.velocity.x) > 0.0, "Hit applies knockback")
-	_assert(game.current_world.player.combo_hits >= 1, "Connected attacks build a hit combo")
-	_assert(game.current_world.hitstop_generation > 0, "Connected attack requests hit-stop")
-	_assert(game.current_world.shake_strength > 0.0, "Connected attack requests camera shake")
+	_assert(game.current_world.hitstop_generation > 0, "Connected shot requests hit-stop")
+	_assert(game.current_world.shake_strength > 0.0, "Connected shot requests camera shake")
 	await create_timer(0.24, true, false, true).timeout
-	_assert(game.current_world.player.basic_attack(), "Second combo attack chains inside the combo window")
-	_assert(game.current_world.player.combo_step == 1, "Basic attacks advance the three-hit chain")
-	await create_timer(0.25, true, false, true).timeout
-	_assert(game.current_world.player.basic_attack(), "Third combo finisher chains")
-	_assert(game.current_world.player.combo_step == 2, "Combo reaches its third finishing hit")
-	await create_timer(0.32, true, false, true).timeout
+	var health_after_first: float = target.health
+	target.hitstun = 2.0
+	target.position = Vector2(257, 205)
+	game.current_world.player.position = Vector2(235, 205)
+	game.current_world.player.facing = 1.0
+	_assert(game.current_world.player.basic_attack(), "Player can fire again")
+	await create_timer(0.26, true, false, true).timeout
+	_assert(target.health < health_after_first, "Repeated ranged shots keep dealing damage")
+	await create_timer(0.2, true, false, true).timeout
 	var energy_before: float = game.current_world.player.energy
 	_assert(game.current_world.player.use_skill(), "Energy skill activates")
 	_assert(game.current_world.player.energy < energy_before, "Skill consumes player energy")
