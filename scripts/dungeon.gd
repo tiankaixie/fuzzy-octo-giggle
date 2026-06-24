@@ -22,6 +22,7 @@ var city_day_texture: Texture2D
 var wc_skyline: Texture2D
 var wc_buildings: Texture2D
 var wc_near: Texture2D
+var wc_props := {}
 var world_time := 0.0
 var player: CombatPlayer
 var foreground: Node2D
@@ -56,6 +57,10 @@ func _ready() -> void:
 		wc_buildings = load(WC_BUILDINGS)
 	if ResourceLoader.exists(WC_NEAR):
 		wc_near = load(WC_NEAR)
+	for prop_name in ["hotel-sign", "banner-big", "banner-neon", "banner-open", "banner-sushi", "banners", "control-box-1", "control-box-2", "antenna", "monitor-face"]:
+		var pp: String = "res://assets/warped_city/props/" + str(prop_name) + ".png"
+		if ResourceLoader.exists(pp):
+			wc_props[prop_name] = load(pp)
 	stage_definition = ContentRegistryClass.stage(stage_id)
 	player = PlayerClass.new()
 	player.setup(CyberPlayer.ViewMode.BEAT_EM_UP)
@@ -261,6 +266,7 @@ func debug_clear_room() -> void:
 
 func _draw() -> void:
 	_draw_sky_and_depth()
+	_draw_city_props()
 	match stage_id:
 		"arcade": _draw_arcade()
 		"transit": _draw_transit()
@@ -272,6 +278,31 @@ func _draw() -> void:
 	_draw_floor_reflection()
 	_draw_room_navigation()
 	_draw_atmosphere()
+
+
+func _draw_city_props() -> void:
+	# Lit neon signage hung in the mid-distance; bloom makes it glow. Builds the
+	# layered "signs everywhere" depth of the reference street scenes.
+	if wc_props.is_empty():
+		return
+	if stage_id == "arcade":
+		var signs := [
+			["banner-big", Vector2(112, 32)],
+			["hotel-sign", Vector2(296, 40)],
+			["banner-open", Vector2(86, 58)],
+			["banner-neon", Vector2(250, 50)],
+			["banners", Vector2(424, 38)],
+			["banner-sushi", Vector2(350, 84)],
+		]
+		for s in signs:
+			var tex = wc_props.get(s[0])
+			if tex:
+				draw_texture(tex, s[1], Color(1, 1, 1))
+	# Wall tech on the side pillars for every stage.
+	if wc_props.has("control-box-1"):
+		draw_texture(wc_props["control-box-1"], Vector2(20, 96), Color(0.72, 0.74, 0.82))
+	if wc_props.has("monitor-face"):
+		draw_texture(wc_props["monitor-face"], Vector2(444, 104), Color(0.85, 0.85, 0.96))
 
 
 func _stage_light() -> Color:
@@ -519,6 +550,12 @@ func _draw_foreground() -> void:
 			_draw_barrel(Vector2(49, 242), Color("765d43"))
 			_draw_barrel(Vector2(72, 247), Color("765d43"))
 			foreground.draw_rect(Rect2(375, 235, 57, 10), Color("2d2d41"))
+	# Near-black foreground silhouettes at the edges frame the shot for depth.
+	var silhouette := Color(0.04, 0.05, 0.09)
+	if wc_props.has("antenna"):
+		foreground.draw_texture(wc_props["antenna"], Vector2(0, 170), silhouette)
+	if wc_props.has("control-box-1"):
+		foreground.draw_texture(wc_props["control-box-1"], Vector2(452, 226), silhouette)
 
 
 func _draw_barrel(pos: Vector2, color: Color) -> void:
