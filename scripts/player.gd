@@ -2,7 +2,6 @@ class_name CyberPlayer
 extends CharacterBody2D
 
 const CharacterFramesClass := preload("res://scripts/art/character_frames.gd")
-const RIM_SHADER := preload("res://shaders/rim_light.gdshader")
 
 enum ViewMode { SIDE, TOP_DOWN, BEAT_EM_UP }
 
@@ -50,12 +49,6 @@ func _ready() -> void:
 		sprite.centered = true
 		sprite.offset = SPRITE_OFFSET
 		sprite.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
-		var rim := ShaderMaterial.new()
-		rim.shader = RIM_SHADER
-		rim.set_shader_parameter("rim_color", Color(0.55, 0.78, 1.0))
-		rim.set_shader_parameter("rim_strength", 0.55)
-		rim.set_shader_parameter("top_boost", 0.5)
-		sprite.material = rim
 		add_child(sprite)
 		current_anim = "idle"
 		sprite.play("idle")
