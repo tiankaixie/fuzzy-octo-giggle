@@ -471,12 +471,21 @@ func _draw_ground_decals(tint: Color) -> void:
 func _draw_arcade() -> void:
 	# The lit city buildings/signs now come from the Warped City backdrop; only
 	# the street-level foreground props and navigation are drawn here.
-	# Arcade cabinets emit small pools of cyan and violet.
-	for x in [180, 211, 242]:
-		draw_rect(Rect2(x, 126, 24, 43), Color("25263f"))
-		draw_rect(Rect2(x + 4, 131, 16, 12), Color("0b1725"))
-		draw_rect(Rect2(x + 6, 133, 12, 2), Color("4ecfc8") if x % 2 == 0 else Color("9c65dd"))
-		draw_rect(Rect2(x + 8, 151, 8, 3), Color("c45d91"))
+	# Arcade cabinets: shaded body, glowing screen and a small control panel.
+	for i in range(3):
+		var x := 180.0 + i * 31.0
+		var screen := Color("4ecfc8") if i % 2 == 0 else Color("9c65dd")
+		draw_rect(Rect2(x, 124, 24, 45), Color("1b1c30"))            # body
+		draw_rect(Rect2(x, 124, 3, 45), Color("2a2c46"))             # lit left edge
+		draw_rect(Rect2(x + 21, 124, 3, 45), Color("101120"))        # shadow right edge
+		draw_rect(Rect2(x + 3, 124, 18, 2), Color(screen, 0.7))      # marquee
+		_glow_circle(Vector2(x + 12, 137), screen, 14.0)            # screen bloom
+		draw_rect(Rect2(x + 4, 130, 16, 13), Color("071018"))        # screen recess
+		draw_rect(Rect2(x + 6, 132, 12, 9), Color(screen, 0.85))     # screen
+		draw_rect(Rect2(x + 6, 132 + int(fmod(ambience_time * 6.0 + i, 9.0)), 12, 1), Color(1, 1, 1, 0.3))  # scanline
+		draw_rect(Rect2(x + 4, 150, 16, 7), Color("141525"))         # control panel
+		draw_rect(Rect2(x + 7, 152, 3, 3), Color("e0566a"))          # buttons
+		draw_rect(Rect2(x + 12, 152, 3, 3), Color("e6c25a"))
 	# Surface hatch back to the bunker, visibly safe and always available.
 	draw_rect(Rect2(0, 112, 25, 58), Color("122536"))
 	draw_rect(Rect2(4, 119, 19, 50), Color("284252"))
