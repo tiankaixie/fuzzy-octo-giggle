@@ -13,7 +13,6 @@ var room_time := 0.0
 var above_ground := false
 var window_col := 0
 var city_texture: Texture2D
-var city_day_texture: Texture2D
 var world_time := 0.0
 
 func setup(type: String, joins_left: bool, joins_right: bool, room_level := 1) -> void:
@@ -203,13 +202,14 @@ func _draw_city_window() -> void:
 	var wy := 12.0
 	var ww := 54.0
 	var wh := 21.0
-	var src_x := clampf(86.0 + float(window_col) * 56.0, 0.0, float(city_texture.get_width()) - 156.0)
-	var src := Rect2(src_x, 66, 156, 78)
+	var tw := float(city_texture.get_width())
+	var th := float(city_texture.get_height())
+	var src_x := clampf(20.0 + float(window_col) * 70.0, 0.0, tw - 150.0)
+	var src := Rect2(src_x, th - 150.0, 150.0, 96.0)
 	var dest := Rect2(wx, wy, ww, wh)
 	var day := 0.5 + 0.5 * sin(world_time * 0.057)
-	draw_texture_rect_region(city_texture, dest, src, Color(0.72, 0.74, 0.88))
-	if city_day_texture and day > 0.01:
-		draw_texture_rect_region(city_day_texture, dest, src, Color(0.95, 0.92, 0.88, day))
+	var b := 0.6 + 0.45 * day
+	draw_texture_rect_region(city_texture, dest, src, Color(b * 0.95, b * 0.95, b))
 	draw_rect(Rect2(wx, wy, ww, wh), Color(0.42, 0.6, 0.82, 0.05))
 	draw_line(Vector2(wx + 4, wy + 3), Vector2(wx + 17, wy + wh - 2), Color(0.7, 0.8, 0.95, 0.06), 2)
 	draw_rect(Rect2(wx + ww / 2.0 - 1.0, wy, 2, wh), Color("23263a"))
