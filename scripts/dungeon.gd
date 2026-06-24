@@ -10,6 +10,7 @@ const CombatAudioClass := preload("res://scripts/combat/combat_audio.gd")
 const BattleHUDClass := preload("res://scripts/battle_hud.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
+const PostProcessClass := preload("res://scripts/post_process.gd")
 const CITY_BG_PATH := "res://assets/backgrounds/city.png"
 const CITY_DAY_PATH := "res://assets/backgrounds/city_day.png"
 
@@ -64,6 +65,10 @@ func _ready() -> void:
 	foreground.draw.connect(_draw_foreground)
 	add_child(foreground)
 	_build_room_wipe()
+	var post := PostProcessClass.new()
+	add_child(post)
+	post.configure(_post_preset())
+
 	var cinematic := CinematicOverlayClass.new()
 	add_child(cinematic)
 	cinematic.configure(_cinematic_preset())
@@ -72,6 +77,16 @@ func _ready() -> void:
 	add_child(battle_hud)
 	battle_hud.configure(stage_id, _room_count())
 	_spawn_room_wave()
+
+
+func _post_preset() -> Dictionary:
+	match stage_id:
+		"transit":
+			return {"bloom_intensity": 0.95, "bloom_threshold": 0.5, "ca_amount": 0.0016, "contrast": 1.08, "saturation": 1.1, "grain": 0.045}
+		"foundry":
+			return {"bloom_intensity": 1.15, "bloom_threshold": 0.48, "ca_amount": 0.0018, "contrast": 1.1, "saturation": 1.12, "grain": 0.05}
+		_:
+			return {"bloom_intensity": 1.1, "bloom_threshold": 0.5, "ca_amount": 0.0018, "contrast": 1.08, "saturation": 1.16, "grain": 0.045}
 
 
 func _cinematic_preset() -> Dictionary:

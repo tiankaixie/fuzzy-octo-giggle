@@ -7,6 +7,7 @@ const PlayerClass := preload("res://scripts/player.gd")
 const RoomClass := preload("res://scripts/bunker_room.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
+const PostProcessClass := preload("res://scripts/post_process.gd")
 
 const COLS := 6
 const ROWS := 3
@@ -64,6 +65,10 @@ func _ready() -> void:
 	overlay.z_index = 100
 	overlay.draw.connect(_draw_overlay)
 	add_child(overlay)
+
+	var post := PostProcessClass.new()
+	add_child(post)
+	post.configure({"bloom_intensity": 0.7, "bloom_threshold": 0.56, "ca_amount": 0.0012, "contrast": 1.06, "saturation": 1.08, "grain": 0.04})
 
 	var cinematic := CinematicOverlayClass.new()
 	add_child(cinematic)
