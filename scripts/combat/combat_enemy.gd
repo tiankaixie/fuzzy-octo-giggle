@@ -30,14 +30,13 @@ var strike_time := 0.0
 var sprite: AnimatedSprite2D
 var current_anim := ""
 
-# Siege mode: instead of chasing the player on one lane, the zombie follows a
-# waypoint path down the bunker shaft toward the reactor core, attacking the
-# core (or the player if they block the way).
+# Siege mode: the zombie hunts the player through the bunker, using the lift
+# shaft to change floors. There is no core objective — killing the gunner is
+# the whole goal.
 var siege := false
-var siege_waypoints: Array = []
-var siege_wp := 0
-var siege_core: Node2D
 var siege_player: Node2D
+var siege_floor_ys: Array = []
+var siege_shaft_x := 34.0
 var siege_attack_target: Node2D
 
 
@@ -172,49 +171,66 @@ func _siege_ai(delta: float) -> void:
 		if windup <= 0.0:
 			_siege_strike()
 		return
-	if is_instance_valid(siege_player) and not siege_player.defeated:
-		var pd: Vector2 = siege_player.position - position
-		if absf(pd.x) < 16.0 and absf(pd.y) < 16.0:
-			if absf(pd.x) > 1.0:
-				facing = signf(pd.x)
-			if attack_cooldown <= 0.0:
-				siege_attack_target = siege_player
-				_begin_attack(0.32)
-			else:
-				velocity = Vector2.ZERO
-			return
-	if siege_wp < siege_waypoints.size():
-		var wp: Vector2 = siege_waypoints[siege_wp]
-		var to_wp: Vector2 = wp - position
-		if to_wp.length() < 5.0:
-			siege_wp += 1
-			return
-		if absf(to_wp.x) > 1.0:
-			facing = signf(to_wp.x)
-		velocity = to_wp.normalized() * definition.move_speed
+	if not is_instance_valid(siege_player) or siege_player.defeated:
+		velocity = Vector2.ZERO
+		return
+	var ppos: Vector2 = siege_player.position
+	var my_floor := _nearest_floor_index(position.y)
+	var player_floor := _nearest_floor_index(ppos.y)
+	if my_floor != player_floor and not siege_floor_ys.is_empty():
+		# Route through the lift shaft to reach the player's floor.
+		if absf(position.x - siege_shaft_x) > 6.0:
+			facing = signf(siege_shaft_x - position.x)
+			velocity = Vector2(facing, 0.0) * definition.move_speed
+		else:
+			var ty: float = siege_floor_ys[player_floor]
+			velocity = Vector2(0.0, signf(ty - position.y)) * definition.move_speed
 		move_and_slide()
 		return
-	if is_instance_valid(siege_core):
-		var cd: Vector2 = siege_core.position - position
-		if absf(cd.x) > 1.0:
-			facing = signf(cd.x)
-		if cd.length() > 16.0:
-			velocity = cd.normalized() * definition.move_speed
-			move_and_slide()
-		elif attack_cooldown <= 0.0:
-			siege_attack_target = siege_core
-			_begin_attack(0.34)
+	# Same floor: close in and attack the gunner.
+	var dx := ppos.x - position.x
+	if absf(dx) > 1.0:
+		facing = signf(dx)
+	var ranged := definition.archetype == EnemyDefinition.Archetype.RANGED
+	if absf(dx) <= definition.attack_range and absf(ppos.y - position.y) < 22.0:
+		if attack_cooldown <= 0.0:
+			_begin_attack(0.42 if ranged else 0.3)
 		else:
 			velocity = Vector2.ZERO
+		return
+	if ranged and absf(dx) < 70.0:
+		velocity = Vector2.ZERO  # hold at standoff range
 	else:
-		velocity = Vector2.ZERO
+		velocity = Vector2(facing, 0.0) * definition.move_speed
+		move_and_slide()
 
 
 func _siege_strike() -> void:
 	strike_time = 0.2
-	if is_instance_valid(siege_attack_target) and siege_attack_target.has_method("take_damage"):
-		siege_attack_target.take_damage(definition.damage, position, definition.knockback_force)
-		sfx_requested.emit("shot" if definition.archetype == EnemyDefinition.Archetype.RANGED else "hit")
+	if not is_instance_valid(siege_player) or siege_player.defeated:
+		return
+	if definition.archetype == EnemyDefinition.Archetype.RANGED:
+		# Flat horizontal shot along the floor (no tracking), easy to read/dodge.
+		projectile_requested.emit(position + Vector2(facing * 10.0, -9), Vector2(facing, 0.0), definition.damage, definition.knockback_force, definition.glow_color)
+		sfx_requested.emit("shot")
+	else:
+		var dx := siege_player.position.x - position.x
+		if absf(dx) < definition.attack_range + 10.0 and absf(siege_player.position.y - position.y) < 22.0:
+			siege_player.take_damage(definition.damage, position, definition.knockback_force)
+			sfx_requested.emit("hit")
+
+
+func _nearest_floor_index(y: float) -> int:
+	if siege_floor_ys.is_empty():
+		return 0
+	var best := 0
+	var best_d := 9999.0
+	for i in range(siege_floor_ys.size()):
+		var d: float = absf(y - float(siege_floor_ys[i]))
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
 
 
 func _begin_attack(duration: float) -> void:

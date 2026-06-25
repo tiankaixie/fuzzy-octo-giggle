@@ -13,7 +13,6 @@ const CombatPlayerClass := preload("res://scripts/combat/combat_player.gd")
 const CombatEnemyClass := preload("res://scripts/combat/combat_enemy.gd")
 const CombatProjectileClass := preload("res://scripts/combat/combat_projectile.gd")
 const CombatFXClass := preload("res://scripts/combat/combat_fx.gd")
-const SiegeCoreClass := preload("res://scripts/combat/siege_core.gd")
 
 const COLS := 6
 const ROWS := 3
@@ -55,7 +54,6 @@ var start_in_siege := false
 var siege_active := false
 var siege_ended := false
 var siege_tier := 1
-var siege_core: Node2D
 var siege_fx: Node2D
 var siege_wave := 0
 var siege_total_waves := 3
@@ -426,16 +424,8 @@ func start_siege(tier := 1) -> void:
 	siege_tier = maxi(1, tier)
 	transition_sent = true  # block the airlock exit for the duration
 	turret_cooldowns = {}
-	# Reactor core is visible during the fortify window so the stake is clear.
 	siege_fx = CombatFXClass.new()
 	add_child(siege_fx)
-	var core: Node2D = SiegeCoreClass.new()
-	core.position = Vector2(240, _floor_y(2))
-	core.z_index = 6
-	add_child(core)
-	core.setup(170.0 + 40.0 * float(siege_tier))
-	core.destroyed.connect(_on_siege_core_destroyed)
-	siege_core = core
 	siege_wave = 0
 	siege_total_waves = 3
 	siege_alive = 0
@@ -503,14 +493,11 @@ func _spawn_siege_zombie() -> void:
 	def.body_color = Color(0.42, 0.72, 0.38)
 	def.glow_color = Color(0.55, 0.95, 0.45)
 	var z: CombatEnemy = CombatEnemyClass.new()
-	z.setup(def, siege_core, Vector2(456, _floor_y(0)))
+	z.setup(def, player, Vector2(456, _floor_y(0)))
 	z.siege = true
-	z.siege_core = siege_core
 	z.siege_player = player
-	z.siege_waypoints = [
-		Vector2(34, _floor_y(0)), Vector2(34, _floor_y(1)),
-		Vector2(34, _floor_y(2)), Vector2(214, _floor_y(2)),
-	]
+	z.siege_floor_ys = [_floor_y(0), _floor_y(1), _floor_y(2)]
+	z.siege_shaft_x = 30.0
 	z.defeated.connect(_on_siege_zombie_defeated)
 	z.projectile_requested.connect(_on_siege_enemy_projectile)
 	add_child(z)
@@ -571,8 +558,9 @@ func _update_turrets(delta: float) -> void:
 					else:
 						turret_cooldowns[key] = 0.35
 				"grow":
-					if is_instance_valid(siege_core) and "health" in siege_core:
-						siege_core.health = minf(siege_core.max_health, siege_core.health + (2.0 + 2.0 * lvl))
+					if is_instance_valid(player) and "health" in player and player.health > 0.0:
+						player.health = minf(player.max_health, player.health + (3.0 + 2.0 * lvl))
+						player.health_changed.emit(player.health, player.max_health)
 					turret_cooldowns[key] = 1.0
 
 
@@ -602,10 +590,6 @@ func _on_siege_zombie_defeated(enemy, _loot: int) -> void:
 	siege_alive = maxi(0, siege_alive - 1)
 	if is_instance_valid(siege_fx) and is_instance_valid(enemy) and enemy.definition:
 		siege_fx.burst(enemy.position + Vector2(0, -16), enemy.definition.glow_color)
-
-
-func _on_siege_core_destroyed() -> void:
-	_lose_siege()
 
 
 func _on_siege_player_died() -> void:
@@ -641,9 +625,6 @@ func _end_siege_cleanup() -> void:
 	for child in get_children():
 		if child is CombatProjectile:
 			child.queue_free()
-	if is_instance_valid(siege_core):
-		siege_core.queue_free()
-	siege_core = null
 	if is_instance_valid(siege_fx):
 		siege_fx.queue_free()
 	siege_fx = null
@@ -673,9 +654,7 @@ func _draw_siege_hud() -> void:
 	var pulse := 0.6 + sin(ambience_time * 6.0) * 0.4
 	overlay.draw_rect(Rect2(150, 6, 184, 16), Color(0.08, 0.02, 0.04, 0.72))
 	overlay.draw_rect(Rect2(150, 6, 3, 16), Color(1.0, 0.3, 0.3, pulse))
-	_label_on(overlay, "SIEGE  //  WAVE %d / %d" % [siege_wave, siege_total_waves], Vector2(160, 18), Color("ff8a7a"), 8)
-	if is_instance_valid(siege_core):
-		_label_on(overlay, "REACTOR", Vector2(214, _floor_y(2) - 54), Color("ffce5a"), 6)
+	_label_on(overlay, "SIEGE  //  WAVE %d / %d  —  SURVIVE" % [siege_wave, siege_total_waves], Vector2(160, 18), Color("ff8a7a"), 8)
 	# Player vitals (bottom-left) and threat counter.
 	var hp := 1.0
 	var hpmax := 1.0

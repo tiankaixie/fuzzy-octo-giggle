@@ -176,7 +176,6 @@ func _run() -> void:
 	game.current_world.start_siege(1)
 	await process_frame
 	_assert(game.current_world.siege_active and game.current_world.siege_prep, "Siege opens with a fortify window")
-	_assert(game.current_world.siege_core != null, "Siege spawns a defensible reactor core")
 	game.current_world.siege_prep_time = 0.0  # skip the fortify countdown
 	await process_frame
 	await process_frame
@@ -197,9 +196,9 @@ func _run() -> void:
 		if c is CombatProjectile:
 			shots_after += 1
 	_assert(shots_after > shots_before, "A built WORKSHOP auto-fires as a turret during a siege")
-	game.current_world.siege_core.take_damage(99999.0, Vector2.ZERO, 0.0)
+	game.current_world.player.take_damage(99999.0, Vector2.ZERO, 0.0)
 	await create_timer(1.8).timeout
-	_assert(game.salvage == 160, "Losing the siege wipes the run (permadeath reset)")
+	_assert(game.salvage == 160, "Losing the siege (gunner down) wipes the run (permadeath)")
 	_assert(game.current_world.has_method("start_siege") and not game.current_world.siege_active, "Permadeath drops into a fresh calm bunker")
 
 	Engine.time_scale = 1.0
