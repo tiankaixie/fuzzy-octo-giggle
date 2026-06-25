@@ -15,6 +15,8 @@ var last_loot := 0
 # Persistent time-of-day clock shared across worlds, so deploying from the
 # bunker at night drops you into a night-time stage.
 var world_time := 0.0
+# Combat loadout from the bunker's rooms, captured on deploy and applied in the dungeon.
+var loadout := {}
 
 
 func _process(delta: float) -> void:
@@ -73,6 +75,8 @@ func _build_transition_layer() -> void:
 
 func _show_world(target: String) -> void:
 	if is_instance_valid(current_world):
+		if current_world.has_method("compute_loadout"):
+			loadout = current_world.compute_loadout()
 		current_world.queue_free()
 	match target:
 		"bunker":
@@ -85,6 +89,8 @@ func _show_world(target: String) -> void:
 			current_world.stage_id = selected_stage_id
 	if "world_time" in current_world:
 		current_world.world_time = world_time
+	if "loadout" in current_world:
+		current_world.loadout = loadout
 	add_child(current_world)
 	move_child(current_world, 0)
 	current_world.transition_requested.connect(_on_transition_requested)

@@ -16,6 +16,11 @@ const MAX_ENERGY := 100.0
 
 var health := MAX_HEALTH
 var energy := 76.0
+var max_health := MAX_HEALTH
+var max_energy := MAX_ENERGY
+var damage_mult := 1.0
+var energy_regen := 4.5
+var hp_regen := 0.0
 var attack_lock := 0.0
 var hit_delay := 0.0
 var pending_attack := ""
@@ -34,6 +39,19 @@ var defeated := false
 
 func _ready() -> void:
 	super._ready()
+
+
+# Applies the bunker loadout (room bonuses) before an expedition.
+func apply_loadout(lo: Dictionary) -> void:
+	max_health = MAX_HEALTH + lo.get("bonus_hp", 0.0)
+	max_energy = MAX_ENERGY + lo.get("bonus_energy", 0.0)
+	energy_regen = 4.5 + lo.get("energy_regen", 0.0)
+	hp_regen = lo.get("hp_regen", 0.0)
+	damage_mult = lo.get("damage_mult", 1.0)
+	health = max_health
+	energy = max_energy
+	health_changed.emit(health, max_health)
+	energy_changed.emit(energy, max_energy)
 
 
 # Combat states take priority over the base idle/walk animation.
@@ -63,7 +81,10 @@ func _physics_process(delta: float) -> void:
 	combo_display = maxf(0.0, combo_display - delta)
 	skill_cooldown = maxf(0.0, skill_cooldown - delta)
 	dodge_cooldown = maxf(0.0, dodge_cooldown - delta)
-	energy = minf(MAX_ENERGY, energy + delta * 4.5)
+	energy = minf(max_energy, energy + delta * energy_regen)
+	if hp_regen > 0.0 and not defeated and health > 0.0:
+		health = minf(max_health, health + hp_regen * delta)
+		health_changed.emit(health, max_health)
 	if combo_display <= 0.0 and combo_hits > 0:
 		combo_hits = 0
 		combo_changed.emit(0)
@@ -140,7 +161,7 @@ func take_damage(amount: float, source_position: Vector2, knockback: float) -> b
 	if invulnerable or defeated:
 		return false
 	health = maxf(0.0, health - amount)
-	health_changed.emit(health, MAX_HEALTH)
+	health_changed.emit(health, max_health)
 	damaged.emit(int(round(amount)))
 	hitstun = 0.24
 	attack_lock = 0.0
@@ -166,10 +187,10 @@ func _deal_pending_attack() -> void:
 	if pending_attack == "skill":
 		# Three-round spread across the depth lanes.
 		for dy in [-0.16, 0.0, 0.16]:
-			shoot_requested.emit(muzzle, Vector2(facing, dy).normalized(), 18.0, 34.0)
+			shoot_requested.emit(muzzle, Vector2(facing, dy).normalized(), 18.0 * damage_mult, 34.0)
 		impact_requested.emit(6.0, 0.05)
 	else:
-		shoot_requested.emit(muzzle, Vector2(facing, 0.0), 14.0, 22.0)
+		shoot_requested.emit(muzzle, Vector2(facing, 0.0), 14.0 * damage_mult, 22.0)
 		impact_requested.emit(3.0, 0.03)
 	pending_attack = ""
 

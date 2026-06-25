@@ -30,6 +30,7 @@ func _run() -> void:
 	_assert(game.current_world.place_room(Vector2i(3, 2), "grow", false), "Player can place a room")
 	_assert(game.current_world.place_room(Vector2i(4, 2), "grow", false), "Player can expand a room horizontally")
 	_assert(game.current_world.rooms_are_merged(Vector2i(3, 2), Vector2i(4, 2)), "Adjacent matching rooms merge")
+	_assert(game.current_world.compute_loadout().hp_regen > 0.0, "Built rooms produce a combat loadout")
 	_assert(game.current_world.remove_room(Vector2i(4, 2), false), "Player can salvage a room")
 	_assert(not game.current_world.remove_room(Vector2i(5, 0), false), "Structural airlock cannot be removed")
 	game.current_world.remove_room(Vector2i(3, 2), false)

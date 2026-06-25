@@ -205,6 +205,28 @@ func get_room_level(cell: Vector2i) -> int:
 	return int(room_levels[cell.y * COLS + cell.x])
 
 
+# Combat loadout derived from the built rooms (summed per cell, scaled by level),
+# so building and upgrading the base directly powers up the next expedition.
+func compute_loadout() -> Dictionary:
+	var lo := {"bonus_hp": 0.0, "bonus_energy": 0.0, "energy_regen": 0.0, "hp_regen": 0.0, "damage_mult": 1.0, "loot_mult": 1.0}
+	for row in range(ROWS):
+		for col in range(COLS):
+			var cell := Vector2i(col, row)
+			var type := get_room(cell)
+			if type == "" or type == "airlock":
+				continue
+			var lvl := float(get_room_level(cell))
+			match type:
+				"rest": lo.bonus_hp += 16.0 * lvl
+				"power":
+					lo.bonus_energy += 12.0 * lvl
+					lo.energy_regen += 1.1 * lvl
+				"grow": lo.hp_regen += 1.4 * lvl
+				"workshop": lo.damage_mult += 0.12 * lvl
+				"commons": lo.loot_mult += 0.12 * lvl
+	return lo
+
+
 func rooms_are_merged(left_cell: Vector2i, right_cell: Vector2i) -> bool:
 	return right_cell == left_cell + Vector2i.RIGHT and get_room(left_cell) != "" and get_room(left_cell) == get_room(right_cell)
 
@@ -426,6 +448,7 @@ func _draw() -> void:
 	# Bunker identity, on small plates so it reads over the sky.
 	_draw_plate_label(Vector2(74, 15), "BUNKER 07 // HABITAT GRID", Color("9aa6c0"))
 	_draw_plate_label(Vector2(393, 15), "SALVAGE " + str(salvage), Color("e3b669"))
+	_draw_loadout_readout()
 	var lift_hint := "W/S  CHANGE FLOOR" if player and player.position.x < 64.0 and not build_mode else ""
 	if lift_hint != "":
 		_label(lift_hint, Vector2(50, 235), Color("e6a466"), 7)
@@ -496,6 +519,30 @@ func _draw_window_cell(cell_pos: Vector2) -> void:
 func _glow_at(center: Vector2, color: Color, radius: float) -> void:
 	for i in range(3, 0, -1):
 		draw_circle(center, radius * float(i) / 3.0, Color(color, 0.05 * (4 - i)))
+
+
+func _draw_loadout_readout() -> void:
+	# Compact summary of the combat bonuses the built rooms grant the next run.
+	var lo := compute_loadout()
+	var parts: Array[String] = []
+	if lo.bonus_hp > 0.0:
+		parts.append("HP+" + str(int(lo.bonus_hp)))
+	if lo.damage_mult > 1.0:
+		parts.append("DMG+" + str(int(round((lo.damage_mult - 1.0) * 100.0))) + "%")
+	if lo.bonus_energy > 0.0:
+		parts.append("EN+" + str(int(lo.bonus_energy)))
+	if lo.hp_regen > 0.0:
+		parts.append("REGEN " + str(snappedf(lo.hp_regen, 0.1)))
+	if lo.loot_mult > 1.0:
+		parts.append("LOOT+" + str(int(round((lo.loot_mult - 1.0) * 100.0))) + "%")
+	if parts.is_empty():
+		return
+	var text := "LOADOUT  " + "   ".join(parts)
+	var width := float(text.length()) * 4.3 + 10.0
+	var x := 472.0 - width
+	draw_rect(Rect2(x, 31, width, 12), Color(0.03, 0.05, 0.11, 0.72))
+	draw_rect(Rect2(x, 31, 2, 12), Color("66d6cc"))
+	_label(text, Vector2(x + 5, 40), Color("9fe0d8"), 6)
 
 
 func _draw_plate_label(pos: Vector2, text: String, color: Color) -> void:
