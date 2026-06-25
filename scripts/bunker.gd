@@ -24,6 +24,8 @@ const SAVE_PATH := "user://bunker_layout.json"
 const GROUND_Y := 100.0
 const WC_NEAR := "res://assets/warped_city/bg/near-buildings-bg.png"
 const WC_SKYLINE := "res://assets/warped_city/bg/skyline-b.png"
+# User-authored cutaway art (own asset): the surface fortress + skyline band.
+const SURFACE_BG := "res://assets/bunker/scene/surface.png"
 
 var player: CyberPlayer
 var layout: Array = []
@@ -46,6 +48,7 @@ var salvage := 160
 var last_loot := 0
 var city_texture: Texture2D
 var wc_skyline: Texture2D
+var surface_bg: Texture2D
 var world_time := 0.0
 var loadout := {}
 
@@ -72,6 +75,8 @@ func _ready() -> void:
 		city_texture = load(WC_NEAR)
 	if ResourceLoader.exists(WC_SKYLINE):
 		wc_skyline = load(WC_SKYLINE)
+	if ResourceLoader.exists(SURFACE_BG):
+		surface_bg = load(SURFACE_BG)
 	room_definitions = ContentRegistryClass.buildable_rooms()
 	for definition: RoomDefinition in room_definitions:
 		buildable_types.append(definition.id)
@@ -680,30 +685,13 @@ func _siege_bar(rect: Rect2, ratio: float, color: Color, tag: String) -> void:
 
 
 func _draw() -> void:
-	# --- Sky above ground, lerping across a slow day/night cycle ---
+	# --- Surface band: user-authored cutaway art (fortress + skyline + neon) ---
 	var day := _day_factor()
-	draw_rect(Rect2(0, 0, 480, GROUND_Y + 2), Color("0b0f22").lerp(Color("39465f"), day))
-	for i in range(9):
-		var t := float(i) / 8.0
-		draw_rect(Rect2(0, i * 11, 480, 12), Color(0.07 + 0.05 * t, 0.07 + 0.04 * t, 0.14 + 0.07 * t, 0.5 * (1.0 - day * 0.55)))
-	# High-fidelity cyberpunk skyline (Warped City, CC0) seen above ground and
-	# through the top-floor windows, brightness lerped across the day/night cycle.
-	var b := 0.6 + 0.45 * day
-	if wc_skyline:
-		var sw := wc_skyline.get_width()
-		for tx in range(0, 5):
-			draw_texture(wc_skyline, Vector2(tx * sw, GROUND_Y - wc_skyline.get_height()), Color(b * 0.7, b * 0.72, b * 0.82))
-	if city_texture:
-		draw_texture(city_texture, Vector2(0, GROUND_Y - city_texture.get_height()), Color(b * 0.95, b * 0.95, b))
-	draw_rect(Rect2(0, GROUND_Y - 18, 480, 18), Color(0.55, 0.6, 0.82, 0.06))
-	# Exterior street level at the base of the windows, so the city sits on
-	# ground and the surface line reads clearly.
-	draw_rect(Rect2(8, 92, 464, 8), Color("121624").lerp(Color("2a3147"), day))
-	draw_rect(Rect2(8, 92, 464, 1), Color("3c3a52"))
-	for sx in range(44, 470, 82):
-		draw_rect(Rect2(sx, 85, 1, 7), Color("5a6478"))
-		if day < 0.65:
-			_glow_at(Vector2(sx, 85), Color(1.0, 0.78, 0.42), 4.0 * (1.0 - day))
+	if surface_bg:
+		var tint := 0.82 + 0.26 * day
+		draw_texture_rect(surface_bg, Rect2(0, 0, 480, 112), false, Color(tint, tint, tint))
+	else:
+		draw_rect(Rect2(0, 0, 480, GROUND_Y + 2), Color("0b0f22").lerp(Color("39465f"), day))
 
 	# --- Buried earth below the ground line ---
 	draw_rect(Rect2(0, GROUND_Y, 480, 270.0 - GROUND_Y), Color("0d1020"))
@@ -729,9 +717,8 @@ func _draw() -> void:
 	# Surface vs buried fortress: ground-seam bulkhead, armored spine, depth tags.
 	_draw_depth_structure()
 
-	# Surface entrance hut + fortified rooftop kit, set against the skyline.
-	_draw_surface_entrance()
-	_draw_rooftop_props()
+	# (Surface fortress, skyline, neon and rooftop kit now come from the
+	# user-authored surface_bg backdrop drawn above.)
 
 	# Permanent lift shaft lets the player reach every expandable floor.
 	draw_rect(Rect2(15, 42, 29, 174), Color("111827"))
