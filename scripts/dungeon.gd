@@ -133,7 +133,7 @@ func _process(delta: float) -> void:
 	player.position.x = clampf(player.position.x, 8.0, 472.0)
 	player.z_index = 20 + int(player.position.y)
 
-	battle_hud.set_stats(player.health, player.energy, player.combo_hits)
+	battle_hud.set_stats(player.health, player.energy, player.combo_hits, remaining_enemies, total_loot)
 	if not room_transitioning and not transition_sent and result_state == "":
 		if player.position.x >= 468.0:
 			if not cleared_rooms.get(room_index, false):

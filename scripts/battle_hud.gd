@@ -14,6 +14,8 @@ var room_count := 3
 var hp := 100.0
 var energy := 76.0
 var combo_count := 0
+var targets := 0
+var salvage := 0
 var skill_flash := [0.0, 0.0, 0.0]
 var hud_time := 0.0
 var banner_text := ""
@@ -44,10 +46,12 @@ func set_room(index: int) -> void:
 		canvas.queue_redraw()
 
 
-func set_stats(health: float, current_energy: float, combo: int) -> void:
+func set_stats(health: float, current_energy: float, combo: int, target_count := 0, loot := 0) -> void:
 	hp = health
 	energy = current_energy
 	combo_count = combo
+	targets = target_count
+	salvage = loot
 
 
 func show_banner(text: String, duration := 1.2) -> void:
@@ -143,43 +147,88 @@ func _draw_minimap(accent: Color) -> void:
 
 
 func _draw_bottom_frame(accent: Color) -> void:
-	# Black chrome frame and segmented lower action bar.
-	canvas.draw_rect(Rect2(0, 226, 480, 44), Color(0.018, 0.022, 0.052, 0.96))
-	canvas.draw_rect(Rect2(0, 226, 480, 2), Color(accent, 0.62))
-	canvas.draw_line(Vector2(132, 231), Vector2(132, 268), Color("3a4053"), 1)
-	canvas.draw_line(Vector2(391, 231), Vector2(391, 268), Color("3a4053"), 1)
+	# Layered chrome panel with accent hairlines, corner notches and dividers.
+	canvas.draw_rect(Rect2(0, 224, 480, 46), Color(0.012, 0.016, 0.04, 0.97))
+	canvas.draw_rect(Rect2(0, 224, 480, 3), Color(0.05, 0.06, 0.1))
+	canvas.draw_rect(Rect2(0, 224, 480, 1), Color(accent, 0.72))
+	canvas.draw_rect(Rect2(0, 267, 480, 3), Color(0.0, 0.0, 0.0, 0.45))
+	for nx in [3, 471]:
+		canvas.draw_rect(Rect2(nx, 228, 6, 1), Color(accent, 0.55))
+		canvas.draw_rect(Rect2(nx if nx < 100 else nx + 5, 228, 1, 6), Color(accent, 0.55))
+	for dx in [132, 296, 391]:
+		canvas.draw_line(Vector2(dx, 230), Vector2(dx, 265), Color("343a4d"), 1)
 	_draw_portrait(accent)
 	_draw_status_bars(accent)
 	_draw_skill_slots(accent)
+	_draw_center_readout(accent)
 	_draw_item_slots(accent)
 
 
 func _draw_portrait(accent: Color) -> void:
-	canvas.draw_rect(Rect2(5, 232, 29, 31), Color("151a2c"))
-	canvas.draw_rect(Rect2(5, 232, 29, 31), accent.darkened(0.25), false, 1)
+	canvas.draw_rect(Rect2(5, 231, 30, 33), Color("0e1322"))
+	canvas.draw_rect(Rect2(5, 231, 30, 3), Color(accent, 0.45))
+	canvas.draw_rect(Rect2(5, 231, 30, 33), accent.darkened(0.2), false, 1)
 	# Pixel portrait echoes the Warped City gunner (purple hair, yellow jacket).
-	canvas.draw_rect(Rect2(12, 242, 15, 14), Color("e7b23b"))
-	canvas.draw_rect(Rect2(11, 244, 3, 12), Color("c8902c"))
-	canvas.draw_rect(Rect2(14, 238, 11, 8), Color("c5896a"))
-	canvas.draw_rect(Rect2(12, 235, 14, 5), Color("7a3d9e"))
-	canvas.draw_rect(Rect2(13, 235, 6, 3), Color("9a5cc0"))
-	canvas.draw_rect(Rect2(20, 242, 4, 2), Color("2b2b3c"))
-	canvas.draw_rect(Rect2(9, 254, 21, 7), Color("18243b"))
-	_label("07", Vector2(19, 261), Color("d4b477"), 6)
+	canvas.draw_rect(Rect2(12, 243, 15, 13), Color("e7b23b"))
+	canvas.draw_rect(Rect2(11, 245, 3, 11), Color("c8902c"))
+	canvas.draw_rect(Rect2(14, 239, 11, 8), Color("c5896a"))
+	canvas.draw_rect(Rect2(12, 236, 14, 5), Color("7a3d9e"))
+	canvas.draw_rect(Rect2(13, 236, 6, 3), Color("9a5cc0"))
+	canvas.draw_rect(Rect2(20, 243, 4, 2), Color("2b2b3c"))
+	canvas.draw_rect(Rect2(7, 256, 26, 7), Color("121a2c"))
+	_label("07", Vector2(17, 262), Color("d4b477"), 6)
 
 
 func _draw_status_bars(accent: Color) -> void:
-	_label("OPERATIVE // LV.07", Vector2(40, 237), Color("a9a7b3"), 6)
-	_bar(Rect2(40, 241, 84, 7), hp / 100.0, Color("e45768"), "HP " + str(roundi(hp)))
-	_bar(Rect2(40, 252, 84, 7), energy / 100.0, Color("4fc7d1"), "EN " + str(roundi(energy)))
-	canvas.draw_rect(Rect2(40, 262, 84, 2), Color(accent, 0.22))
-	canvas.draw_rect(Rect2(40, 262, 47, 2), accent)
+	canvas.draw_rect(Rect2(40, 230, 33, 9), Color(accent, 0.16))
+	canvas.draw_rect(Rect2(40, 230, 33, 9), Color(accent, 0.55), false, 1)
+	_label("LV.07", Vector2(43, 237), accent.lightened(0.3), 6)
+	_label("OPERATIVE", Vector2(78, 237), Color("8b8a98"), 6)
+	_heart(Vector2(42, 244), Color("e6485f"))
+	_bar(Rect2(50, 242, 74, 7), hp / 100.0, Color("e6485f"), str(roundi(hp)))
+	_bolt(Vector2(43, 254), Color("4fc7d1"))
+	_bar(Rect2(50, 253, 74, 7), energy / 100.0, Color("4fc7d1"), str(roundi(energy)))
+
+
+func _heart(c: Vector2, col: Color) -> void:
+	canvas.draw_rect(Rect2(c.x, c.y, 2, 2), col)
+	canvas.draw_rect(Rect2(c.x + 3, c.y, 2, 2), col)
+	canvas.draw_rect(Rect2(c.x, c.y + 1, 5, 2), col)
+	canvas.draw_rect(Rect2(c.x + 1, c.y + 3, 3, 1), col)
+
+
+func _bolt(c: Vector2, col: Color) -> void:
+	canvas.draw_rect(Rect2(c.x + 2, c.y, 2, 3), col)
+	canvas.draw_rect(Rect2(c.x, c.y + 2, 3, 2), col)
+	canvas.draw_rect(Rect2(c.x + 1, c.y + 3, 2, 2), col)
+
+
+func _draw_center_readout(accent: Color) -> void:
+	_label("TARGETS", Vector2(302, 237), Color("8b8a98"), 6)
+	if targets <= 0:
+		_label("CLEAR", Vector2(348, 237), accent.lightened(0.3), 6)
+	else:
+		for i in range(mini(targets, 6)):
+			var px := 348.0 + i * 7.0
+			canvas.draw_rect(Rect2(px, 231, 5, 6), Color("e6485f"))
+			canvas.draw_rect(Rect2(px, 231, 5, 6), Color("ff97a3"), false, 1)
+	_label("SALVAGE", Vector2(302, 252), Color("8b8a98"), 6)
+	canvas.draw_rect(Rect2(346, 247, 7, 7), Color("c79a3a"))
+	canvas.draw_rect(Rect2(347, 248, 5, 5), Color("f1c36f"))
+	_label(str(salvage), Vector2(357, 253), Color("f6dd8a"), 7)
 
 
 func _bar(rect: Rect2, amount: float, color: Color, text: String) -> void:
-	canvas.draw_rect(rect, Color("181c2d"))
-	canvas.draw_rect(Rect2(rect.position + Vector2(1, 1), Vector2((rect.size.x - 2) * clampf(amount, 0.0, 1.0), rect.size.y - 2)), color)
-	_label(text, rect.position + Vector2(3, 6), Color("f2edf0"), 5)
+	canvas.draw_rect(rect, Color("141828"))
+	canvas.draw_rect(rect, Color("2a3047"), false, 1)
+	var w := (rect.size.x - 2) * clampf(amount, 0.0, 1.0)
+	canvas.draw_rect(Rect2(rect.position + Vector2(1, 1), Vector2(w, rect.size.y - 2)), color)
+	canvas.draw_rect(Rect2(rect.position + Vector2(1, 1), Vector2(w, 1)), color.lightened(0.45))
+	var tx := rect.position.x + 12.0
+	while tx < rect.position.x + rect.size.x - 2.0:
+		canvas.draw_rect(Rect2(tx, rect.position.y + 1, 1, rect.size.y - 2), Color(0, 0, 0, 0.32))
+		tx += 12.0
+	_label(text, rect.position + Vector2(rect.size.x - 15.0, 6), Color("f2edf0"), 5)
 
 
 func _draw_skill_slots(accent: Color) -> void:
