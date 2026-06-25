@@ -21,6 +21,9 @@ var loadout := {}
 var auto_siege := true
 var pending_siege := false
 var siege_tier := 1
+# Greed = timer: looting raises heat; when it crosses the tier threshold on a
+# return home, the dead come for the bunker.
+var heat := 0.0
 
 
 func _process(delta: float) -> void:
@@ -107,6 +110,8 @@ func _show_world(target: String) -> void:
 		current_world.stage_completed.connect(_on_stage_completed)
 	if current_world.has_signal("salvage_changed"):
 		current_world.salvage_changed.connect(_on_salvage_changed)
+	if current_world.has_signal("siege_resolved"):
+		current_world.siege_resolved.connect(_on_siege_resolved)
 	if target == "bunker":
 		last_loot = 0
 
@@ -121,7 +126,10 @@ func _on_stage_completed(completed_stage_id: String, loot: int) -> void:
 	last_loot = loot
 	salvage += loot
 	if auto_siege:
-		pending_siege = true
+		heat += float(loot)
+		if heat >= 80.0 * float(siege_tier):
+			pending_siege = true
+			heat = 0.0
 	_on_transition_requested("bunker")
 
 
@@ -138,6 +146,13 @@ func reset_run() -> void:
 	siege_tier = 1
 	pending_siege = false
 	last_loot = 0
+	heat = 0.0
+
+
+# Survived sieges deepen the threat for the next one.
+func _on_siege_resolved(won: bool) -> void:
+	if won:
+		siege_tier += 1
 
 
 func _on_transition_requested(target: String) -> void:

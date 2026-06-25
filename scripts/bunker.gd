@@ -2,6 +2,7 @@ extends Node2D
 
 signal transition_requested(target: String)
 signal salvage_changed(value: int)
+signal siege_resolved(won: bool)
 
 const PlayerClass := preload("res://scripts/player.gd")
 const RoomClass := preload("res://scripts/bunker_room.gd")
@@ -62,6 +63,9 @@ var siege_to_spawn := 0
 var siege_alive := 0
 var siege_spawn_timer := 0.0
 var siege_lull := 0.0
+var siege_prep := false
+var siege_prep_time := 0.0
+var turret_cooldowns := {}
 
 
 func _ready() -> void:
@@ -119,7 +123,13 @@ func _process(delta: float) -> void:
 		_switch_floor(signi(roundi(floor_input)))
 
 	if siege_active:
-		_siege_process(delta)
+		if siege_prep:
+			siege_prep_time -= delta
+			if siege_prep_time <= 0.0:
+				_begin_live_siege()
+		else:
+			_siege_process(delta)
+			_update_turrets(delta)
 	elif current_floor == 0 and player.position.x > 459.0 and not transition_sent:
 		transition_sent = true
 		player.movement_enabled = false
@@ -131,8 +141,12 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if siege_active:
+	if siege_active and not siege_prep:
 		return  # No build/blueprint input during a live siege.
+	if siege_prep and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ENTER:
+		siege_prep_time = 0.0  # Skip the rest of the fortify window and attack now.
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_TAB:
 			_set_build_mode(not build_mode)
@@ -407,21 +421,12 @@ func start_siege(tier := 1) -> void:
 		return
 	siege_active = true
 	siege_ended = false
+	siege_prep = true
+	siege_prep_time = 18.0
 	siege_tier = maxi(1, tier)
-	build_mode = false
-	transition_sent = true  # block the airlock exit while the siege is live
-	current_floor = 0
-	# Swap the calm wanderer for the combat-capable gunner, armed by the rooms.
-	if is_instance_valid(player):
-		player.queue_free()
-	var cp: CombatPlayer = CombatPlayerClass.new()
-	cp.setup(CyberPlayer.ViewMode.SIDE)
-	cp.position = Vector2(240, _floor_y(0))
-	add_child(cp)
-	cp.apply_loadout(compute_loadout())
-	cp.shoot_requested.connect(_on_siege_player_shot)
-	cp.died.connect(_on_siege_player_died)
-	player = cp
+	transition_sent = true  # block the airlock exit for the duration
+	turret_cooldowns = {}
+	# Reactor core is visible during the fortify window so the stake is clear.
 	siege_fx = CombatFXClass.new()
 	add_child(siege_fx)
 	var core: Node2D = SiegeCoreClass.new()
@@ -435,7 +440,25 @@ func start_siege(tier := 1) -> void:
 	siege_total_waves = 3
 	siege_alive = 0
 	siege_to_spawn = 0
-	siege_lull = 1.4
+	siege_lull = 0.8
+	_show_status("SIEGE IMMINENT // FORTIFY  [ENTER] BEGIN")
+
+
+# After the fortify window, swap in the gunner and let the waves loose.
+func _begin_live_siege() -> void:
+	siege_prep = false
+	build_mode = false
+	current_floor = 0
+	if is_instance_valid(player):
+		player.queue_free()
+	var cp: CombatPlayer = CombatPlayerClass.new()
+	cp.setup(CyberPlayer.ViewMode.SIDE)
+	cp.position = Vector2(240, _floor_y(0))
+	add_child(cp)
+	cp.apply_loadout(compute_loadout())
+	cp.shoot_requested.connect(_on_siege_player_shot)
+	cp.died.connect(_on_siege_player_died)
+	player = cp
 	_show_status("SIEGE // DEFEND THE REACTOR")
 
 
@@ -512,6 +535,69 @@ func _on_siege_enemy_projectile(origin: Vector2, direction: Vector2, damage: flo
 	add_child(p)
 
 
+# Built rooms double as automated defenses during a siege: the habitat you build
+# IS the fortress's firepower. WORKSHOP auto-fires, POWER arcs, GROW repairs.
+func _update_turrets(delta: float) -> void:
+	for row in range(ROWS):
+		for col in range(COLS):
+			var type := get_room(Vector2i(col, row))
+			if type != "workshop" and type != "power" and type != "grow":
+				continue
+			var key := row * COLS + col
+			var cd := float(turret_cooldowns.get(key, 0.0)) - delta
+			if cd > 0.0:
+				turret_cooldowns[key] = cd
+				continue
+			var lvl := float(get_room_level(Vector2i(col, row)))
+			var center := GRID_ORIGIN + Vector2(col, row) * CELL_SIZE + Vector2(CELL_SIZE.x * 0.5, 0.0)
+			var fy := _floor_y(row)
+			match type:
+				"workshop":
+					var tgt = _nearest_zombie_on_floor(fy, center.x)
+					if tgt != null:
+						var muzzle := Vector2(center.x, fy - 12.0)
+						var dir: Vector2 = (tgt.position + Vector2(0, -12) - muzzle).normalized()
+						_spawn_turret_shot(muzzle, dir, 9.0 + 3.0 * lvl, 18.0)
+						turret_cooldowns[key] = 1.2 / (1.0 + 0.18 * lvl)
+					else:
+						turret_cooldowns[key] = 0.3
+				"power":
+					var tgt2 = _nearest_zombie_on_floor(fy, center.x)
+					if tgt2 != null and absf(tgt2.position.x - center.x) < 78.0:
+						var hit_pos: Vector2 = tgt2.position + Vector2(0, -12)
+						if tgt2.take_damage(10.0 + 4.0 * lvl, center, 10.0) and is_instance_valid(siege_fx):
+							siege_fx.hit(hit_pos, int(10.0 + 4.0 * lvl), Color(0.5, 0.85, 1.0))
+						turret_cooldowns[key] = 1.7 / (1.0 + 0.12 * lvl)
+					else:
+						turret_cooldowns[key] = 0.35
+				"grow":
+					if is_instance_valid(siege_core) and "health" in siege_core:
+						siege_core.health = minf(siege_core.max_health, siege_core.health + (2.0 + 2.0 * lvl))
+					turret_cooldowns[key] = 1.0
+
+
+func _nearest_zombie_on_floor(floor_y: float, from_x: float):
+	var best = null
+	var best_d := 9999.0
+	for z in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(z) or z.dead:
+			continue
+		if absf(z.position.y - floor_y) > 32.0:
+			continue
+		var d := absf(z.position.x - from_x)
+		if d < best_d:
+			best_d = d
+			best = z
+	return best
+
+
+func _spawn_turret_shot(origin: Vector2, direction: Vector2, damage: float, knockback: float) -> void:
+	var shot: CombatProjectile = CombatProjectileClass.new()
+	shot.setup(origin, direction, null, damage, knockback, Color(0.55, 0.95, 0.55), true)
+	shot.struck.connect(_on_siege_shot_hit)
+	add_child(shot)
+
+
 func _on_siege_zombie_defeated(enemy, _loot: int) -> void:
 	siege_alive = maxi(0, siege_alive - 1)
 	if is_instance_valid(siege_fx) and is_instance_valid(enemy) and enemy.definition:
@@ -535,6 +621,7 @@ func _win_siege() -> void:
 	salvage += reward
 	salvage_changed.emit(salvage)
 	_end_siege_cleanup()
+	siege_resolved.emit(true)
 	_show_status("BUNKER HELD // +%d SALVAGE" % reward)
 
 
@@ -569,6 +656,7 @@ func _end_siege_cleanup() -> void:
 	player = np
 	transition_sent = false
 	start_in_siege = false
+	siege_prep = false
 
 
 func _draw_siege_hud() -> void:
@@ -847,6 +935,16 @@ func _draw_loadout_readout() -> void:
 	_label(text, Vector2(x + 5, 40), Color("9fe0d8"), 6)
 
 
+func _draw_prep_banner() -> void:
+	# Fortify countdown shown over the normal build overlay during pre-siege.
+	var secs := int(ceil(maxf(0.0, siege_prep_time)))
+	var pulse := 0.55 + sin(ambience_time * 6.0) * 0.45
+	overlay.draw_rect(Rect2(96, 4, 300, 18), Color(0.1, 0.02, 0.03, 0.8))
+	overlay.draw_rect(Rect2(96, 4, 300, 2), Color(1.0, 0.35, 0.3, pulse))
+	overlay.draw_rect(Rect2(96, 20, 300, 2), Color(1.0, 0.35, 0.3, pulse * 0.7))
+	_label_on(overlay, "SIEGE IMMINENT // FORTIFY %ds   [TAB] BUILD   [ENTER] BEGIN" % secs, Vector2(104, 17), Color("ff9a6a"), 7)
+
+
 func _draw_plate_label(pos: Vector2, text: String, color: Color) -> void:
 	var width := float(text.length()) * 4.2 + 8.0
 	draw_rect(Rect2(pos.x, pos.y, width, 13), Color(0.03, 0.05, 0.11, 0.72))
@@ -855,9 +953,11 @@ func _draw_plate_label(pos: Vector2, text: String, color: Color) -> void:
 
 
 func _draw_overlay() -> void:
-	if siege_active:
+	if siege_active and not siege_prep:
 		_draw_siege_hud()
 		return
+	if siege_active and siege_prep:
+		_draw_prep_banner()  # countdown over the normal build overlay
 	if not build_mode:
 		var pulse := 0.55 + sin(ambience_time * 2.2) * 0.18
 		_label_on(overlay, "[TAB] DESIGN BUNKER", Vector2(345, 235), Color(0.48, 0.72, 0.76, pulse), 7)

@@ -175,12 +175,28 @@ func _run() -> void:
 	# and losing wipes the run (permadeath).
 	game.current_world.start_siege(1)
 	await process_frame
-	await process_frame
-	_assert(game.current_world.siege_active, "Bunker can enter a tower-defense siege")
-	_assert(game.current_world.player is CombatPlayer, "Siege arms the gunner with the combat controller")
+	_assert(game.current_world.siege_active and game.current_world.siege_prep, "Siege opens with a fortify window")
 	_assert(game.current_world.siege_core != null, "Siege spawns a defensible reactor core")
+	game.current_world.siege_prep_time = 0.0  # skip the fortify countdown
+	await process_frame
+	await process_frame
+	_assert(not game.current_world.siege_prep, "Fortify window ends into live waves")
+	_assert(game.current_world.player is CombatPlayer, "Siege arms the gunner with the combat controller")
 	await create_timer(2.0).timeout
 	_assert(get_nodes_in_group("enemies").size() > 0, "Siege waves spawn descending zombies")
+	# Rooms-as-turrets: a built WORKSHOP auto-fires at a zombie on its floor.
+	var siege_zombies := get_nodes_in_group("enemies")
+	siege_zombies[0].position = Vector2(180, game.current_world._floor_y(2))
+	var shots_before := 0
+	for c in game.current_world.get_children():
+		if c is CombatProjectile:
+			shots_before += 1
+	game.current_world._update_turrets(3.0)
+	var shots_after := 0
+	for c in game.current_world.get_children():
+		if c is CombatProjectile:
+			shots_after += 1
+	_assert(shots_after > shots_before, "A built WORKSHOP auto-fires as a turret during a siege")
 	game.current_world.siege_core.take_damage(99999.0, Vector2.ZERO, 0.0)
 	await create_timer(1.8).timeout
 	_assert(game.salvage == 160, "Losing the siege wipes the run (permadeath reset)")
