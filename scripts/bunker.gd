@@ -26,6 +26,7 @@ const WC_NEAR := "res://assets/warped_city/bg/near-buildings-bg.png"
 const WC_SKYLINE := "res://assets/warped_city/bg/skyline-b.png"
 # User-authored cutaway art (own asset): the surface fortress + skyline band.
 const SURFACE_BG := "res://assets/bunker/scene/surface.png"
+const CUTAWAY_BG := "res://assets/bunker/scene/cutaway_full.png"
 
 var player: CyberPlayer
 var layout: Array = []
@@ -49,6 +50,7 @@ var last_loot := 0
 var city_texture: Texture2D
 var wc_skyline: Texture2D
 var surface_bg: Texture2D
+var cutaway_bg: Texture2D
 var world_time := 0.0
 var loadout := {}
 
@@ -77,6 +79,8 @@ func _ready() -> void:
 		wc_skyline = load(WC_SKYLINE)
 	if ResourceLoader.exists(SURFACE_BG):
 		surface_bg = load(SURFACE_BG)
+	if ResourceLoader.exists(CUTAWAY_BG):
+		cutaway_bg = load(CUTAWAY_BG)
 	room_definitions = ContentRegistryClass.buildable_rooms()
 	for definition: RoomDefinition in room_definitions:
 		buildable_types.append(definition.id)
@@ -305,6 +309,7 @@ func _rebuild_rooms() -> void:
 			room.window_col = col
 			room.setup(type, left_join, right_join, get_room_level(cell))
 			room.z_index = 2
+			room.visible = cutaway_bg == null  # cutaway art supplies the room interiors
 			add_child(room)
 			room_nodes.append(room)
 
@@ -685,64 +690,19 @@ func _siege_bar(rect: Rect2, ratio: float, color: Color, tag: String) -> void:
 
 
 func _draw() -> void:
-	# --- Surface band: user-authored cutaway art (fortress + skyline + neon) ---
+	# --- Full cutaway backdrop: user-authored cross-section art ---
 	var day := _day_factor()
-	if surface_bg:
-		var tint := 0.82 + 0.26 * day
-		draw_texture_rect(surface_bg, Rect2(0, 0, 480, 112), false, Color(tint, tint, tint))
+	if cutaway_bg:
+		var tint := 0.86 + 0.2 * day
+		draw_texture_rect(cutaway_bg, Rect2(0, 0, 480, 270), false, Color(tint, tint, tint))
 	else:
-		draw_rect(Rect2(0, 0, 480, GROUND_Y + 2), Color("0b0f22").lerp(Color("39465f"), day))
+		draw_rect(Rect2(0, 0, 480, 270), Color("0b0f22"))
 
-	# --- Buried earth below the ground line ---
-	draw_rect(Rect2(0, GROUND_Y, 480, 270.0 - GROUND_Y), Color("0d1020"))
-	draw_rect(Rect2(0, GROUND_Y - 1, 480, 2), Color("60505c"))
-	draw_rect(Rect2(0, GROUND_Y + 1, 480, 5), Color("241d31"))
-	for x in range(0, 480, 17):
-		var ey := GROUND_Y + 12.0 + float((x * 13) % 150)
-		draw_rect(Rect2(x, ey, 11, 3), Color("17152a"))
-	for y in range(int(GROUND_Y) + 8, 222, 19):
-		draw_rect(Rect2(4, y, 15, 4), Color("1d1830"))
-		draw_rect(Rect2(460, y + 7, 17, 4), Color("1d1830"))
-
-	# --- Concrete shell: border walls only, so the top floor stays open to the
-	# city while the buried floors get an opaque back wall. ---
-	draw_rect(Rect2(12, 38, 456, GROUND_Y - 38), Color(0.07, 0.1, 0.18, 0.16))
-	draw_rect(Rect2(12, GROUND_Y, 456, 220.0 - GROUND_Y), Color("0b0e1b"))
-	draw_rect(Rect2(8, 34, 464, 4), Color("33364c"))
-	draw_rect(Rect2(8, 34, 464, 1), Color("565a78"))
-	draw_rect(Rect2(8, 34, 4, 190), Color("2a2d40"))
-	draw_rect(Rect2(468, 34, 4, 190), Color("2a2d40"))
-	draw_rect(Rect2(8, 220, 464, 8), Color("2f3146"))
-
-	# Surface vs buried fortress: ground-seam bulkhead, armored spine, depth tags.
-	_draw_depth_structure()
-
-	# (Surface fortress, skyline, neon and rooftop kit now come from the
-	# user-authored surface_bg backdrop drawn above.)
-
-	# Permanent lift shaft lets the player reach every expandable floor.
-	draw_rect(Rect2(15, 42, 29, 174), Color("111827"))
-	draw_rect(Rect2(19, 45, 21, 168), Color("263344"))
-	draw_rect(Rect2(22, 48, 3, 162), Color("60707b"))
-	draw_rect(Rect2(34, 48, 3, 162), Color("60707b"))
-	for y in range(51, 209, 10):
-		draw_rect(Rect2(23, y, 13, 2), Color("52626f"))
+	# Subtle current-floor indicator on the left rail.
 	for row in range(ROWS):
-		var fy := GRID_ORIGIN.y + row * CELL_SIZE.y
-		draw_rect(Rect2(12, fy + 54, 456, 4), Color("555269"))
-		draw_rect(Rect2(17, fy + 55, 24, 2), Color("f0a158") if row == current_floor else Color("5c5366"))
-
-	# Empty cells: the above-ground row reads as windows onto the city; buried
-	# rows read as raw excavated structure.
-	for row in range(ROWS):
-		for col in range(COLS):
-			if get_room(Vector2i(col, row)) != "":
-				continue
-			var cell_pos := GRID_ORIGIN + Vector2(col, row) * CELL_SIZE
-			if row == 0:
-				_draw_window_cell(cell_pos)
-			else:
-				_draw_empty_cell(cell_pos, col, row)
+		var fy := GRID_ORIGIN.y + float(row) * CELL_SIZE.y
+		if row == current_floor:
+			draw_rect(Rect2(5, fy + 48, 5, 12), Color(0.94, 0.63, 0.34, 0.9))
 
 	# Bunker identity, on small plates so it reads over the sky.
 	_draw_plate_label(Vector2(74, 15), "BUNKER 07 // HABITAT GRID", Color("9aa6c0"))
