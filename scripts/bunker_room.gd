@@ -101,17 +101,24 @@ func _draw_shell(accent: Color) -> void:
 
 
 func _draw_rest(accent: Color) -> void:
-	# Compact bunk, lamp, shelf and old-world photo.
-	draw_rect(Rect2(8, 38, 45, 7), Color("743e59"))
-	draw_rect(Rect2(10, 35, 41, 5), Color("b75b65"))
-	draw_rect(Rect2(11, 35, 13, 4), Color("e8bc78"))
-	draw_rect(Rect2(9, 45, 3, 7), Color("5b4350"))
-	draw_rect(Rect2(49, 45, 3, 7), Color("5b4350"))
-	draw_rect(Rect2(56, 29, 2, 17), Color("674750"))
-	draw_colored_polygon(PackedVector2Array([Vector2(51, 30), Vector2(63, 30), Vector2(60, 24), Vector2(54, 24)]), accent)
-	_glow(Vector2(57, 30), accent, 12)
-	draw_rect(Rect2(12, 15, 11, 13), Color("3a2a42"))
-	draw_rect(Rect2(14, 17, 7, 8), Color("9d6963"))
+	# Bunk with a shaded blanket and pillow, a warm reading lamp and a framed photo.
+	draw_rect(Rect2(8, 39, 45, 8), Color("351f2c"))
+	draw_rect(Rect2(8, 38, 45, 7), Color("6e3a52"))
+	draw_rect(Rect2(10, 34, 41, 6), Color("a8505f"))
+	draw_rect(Rect2(10, 34, 41, 2), Color("c66b77"))
+	draw_rect(Rect2(10, 39, 41, 1), Color("3a1f2a"))
+	draw_rect(Rect2(11, 34, 14, 5), Color("e8c79a"))
+	draw_rect(Rect2(11, 34, 14, 1), Color("f7e1c1"))
+	draw_rect(Rect2(9, 45, 3, 7), Color("44313c"))
+	draw_rect(Rect2(49, 45, 3, 7), Color("44313c"))
+	draw_rect(Rect2(56, 29, 2, 17), Color("5a3d46"))
+	draw_colored_polygon(PackedVector2Array([Vector2(51, 30), Vector2(63, 30), Vector2(60, 23), Vector2(54, 23)]), Color("d9b06a"))
+	draw_rect(Rect2(54, 29, 6, 1), Color("ffd98a"))
+	_glow(Vector2(57, 31), Color("ffcf7a"), 13)
+	draw_rect(Rect2(12, 14, 12, 14), Color("281d31"))
+	draw_rect(Rect2(13, 15, 10, 12), Color("46353e"))
+	draw_rect(Rect2(14, 17, 8, 8), Color("9d6963"))
+	draw_rect(Rect2(14, 17, 8, 2), Color(accent, 0.4))
 	_label("REST", Vector2(31, 21), accent, 6)
 
 
