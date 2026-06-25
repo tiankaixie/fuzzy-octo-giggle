@@ -659,6 +659,9 @@ func _draw() -> void:
 	draw_rect(Rect2(468, 34, 4, 190), Color("2a2d40"))
 	draw_rect(Rect2(8, 220, 464, 8), Color("2f3146"))
 
+	# Surface vs buried fortress: ground-seam bulkhead, armored spine, depth tags.
+	_draw_depth_structure()
+
 	# Surface entrance hut + fortified rooftop kit, set against the skyline.
 	_draw_surface_entrance()
 	_draw_rooftop_props()
@@ -702,23 +705,38 @@ func _day_factor() -> float:
 
 
 func _draw_surface_entrance() -> void:
-	# Hardened entrance hut on the roof above the lift, with a blinking beacon.
-	var ex := 12.0
-	draw_rect(Rect2(ex - 2, 30, 56, 5), Color("2c2f44"))
-	draw_rect(Rect2(ex, 14, 50, 20), Color("23263a"))
-	draw_rect(Rect2(ex, 14, 50, 3), Color("3b4059"))
-	draw_rect(Rect2(ex + 2, 17, 46, 17), Color("181b2c"))
-	draw_rect(Rect2(ex + 16, 19, 15, 15), Color("0c1018"))
-	draw_rect(Rect2(ex + 16, 19, 15, 2), Color("4a5168"))
-	draw_rect(Rect2(ex + 22, 25, 2, 6), Color("55ddcd"))
-	for i in range(6):
-		draw_rect(Rect2(ex + 2 + i * 8, 31, 5, 3), Color("e0a24a") if i % 2 == 0 else Color("16161f"))
-	draw_line(Vector2(ex + 44, 14), Vector2(ex + 44, 3), Color("4a5060"), 1)
-	var on := fmod(ambience_time, 1.4) < 0.7
+	# The single fortified ingress on the surface: a hardened bunker cap over the
+	# lift with a heavy blast door — narratively the only way the dead get in.
+	var ex := 10.0
+	# Concrete apron the cap sits on.
+	draw_rect(Rect2(ex - 4, 31, 64, 5), Color("221f2d"))
+	draw_rect(Rect2(ex - 4, 31, 64, 1), Color("3a3550"))
+	# Hardened cap shell.
+	draw_rect(Rect2(ex - 2, 9, 58, 25), Color("1c1f30"))
+	draw_rect(Rect2(ex - 2, 9, 58, 3), Color("3b4059"))
+	draw_rect(Rect2(ex - 2, 9, 2, 25), Color("2c3146"))
+	draw_rect(Rect2(ex + 54, 9, 2, 25), Color("2c3146"))
+	# Bulkhead lintel with hazard chevrons.
+	for i in range(7):
+		draw_rect(Rect2(ex + i * 8, 11, 5, 3), Color("e0a24a") if i % 2 == 0 else Color("16161f"))
+	# Recessed twin blast door with bolts and a glowing vision slit.
+	draw_rect(Rect2(ex + 13, 16, 24, 18), Color("0c1018"))
+	draw_rect(Rect2(ex + 13, 16, 24, 18), Color("394157"), false, 1)
+	draw_rect(Rect2(ex + 24, 16, 2, 18), Color("232a3c"))
+	for bx in [ex + 15, ex + 33]:
+		for by in [18, 31]:
+			draw_rect(Rect2(bx, by, 2, 2), Color("4a5168"))
+	draw_rect(Rect2(ex + 17, 21, 16, 2), Color("55ddcd"))
+	# Mast + alarm beacon — red and fast while a siege is imminent or live.
+	var alarm := siege_active or start_in_siege
+	draw_line(Vector2(ex + 48, 9), Vector2(ex + 48, 2), Color("4a5060"), 1)
+	var period := 0.5 if alarm else 1.4
+	var on := fmod(ambience_time, period) < period * 0.5
+	var beacon := Color("ff3030") if alarm else Color("ff5a52")
 	if on:
-		_glow_at(Vector2(ex + 44, 3), Color("ff5a52"), 5.0)
-	draw_circle(Vector2(ex + 44, 3), 2.0, Color("ff5a52") if on else Color("4a2526"))
-	_label("ENTRY", Vector2(ex + 4, 12), Color("8fb0bf"), 5)
+		_glow_at(Vector2(ex + 48, 2), beacon, 5.0)
+	draw_circle(Vector2(ex + 48, 2), 2.0, beacon if on else Color("4a2526"))
+	_label("ENTRY", Vector2(ex + 2, 8), Color("8fb0bf"), 5)
 
 
 func _draw_rooftop_props() -> void:
@@ -761,6 +779,48 @@ func _draw_window_cell(cell_pos: Vector2) -> void:
 func _glow_at(center: Vector2, color: Color, radius: float) -> void:
 	for i in range(3, 0, -1):
 		draw_circle(center, radius * float(i) / 3.0, Color(color, 0.05 * (4 - i)))
+
+
+# Reads the bunker as two distinct zones: an exposed surface and a buried
+# fortress that hardens (darker, thicker walls) the deeper it goes.
+func _draw_depth_structure() -> void:
+	var day := _day_factor()
+	# Ground seam: a heavy hazard bulkhead clamping the surface onto the fortress.
+	draw_rect(Rect2(8, GROUND_Y - 4, 464, 11), Color("241f2e"))
+	draw_rect(Rect2(8, GROUND_Y - 4, 464, 2), Color("6b5a6f").lerp(Color("8a7f95"), day))
+	for cx in range(10, 470, 14):
+		var amber := ((cx / 14) % 2) == 0
+		draw_rect(Rect2(cx, GROUND_Y - 1, 12, 5), Color("c8902f") if amber else Color("16151f"))
+	draw_rect(Rect2(8, GROUND_Y + 6, 464, 1), Color(0, 0, 0, 0.5))
+
+	# Left armored spine + right rib, thickening on each deeper sublevel.
+	for row in range(1, ROWS):
+		var fy := GRID_ORIGIN.y + float(row) * CELL_SIZE.y
+		var w := 6.0 + float(row) * 2.0
+		draw_rect(Rect2(0, fy, w, CELL_SIZE.y), Color("13111d"))
+		draw_rect(Rect2(w - 1.0, fy, 1, CELL_SIZE.y), Color("2c2740"))
+		for ry in range(int(fy) + 6, int(fy + CELL_SIZE.y), 12):
+			draw_rect(Rect2(2, ry, 2, 2), Color("3a3550"))
+		var w2 := 4.0 + float(row) * 2.0
+		draw_rect(Rect2(480.0 - w2, fy, w2, CELL_SIZE.y), Color("13111d"))
+		draw_rect(Rect2(480.0 - w2, fy, 1, CELL_SIZE.y), Color("2c2740"))
+
+	# Depth darkening: deeper sublevels read more enclosed.
+	for row in range(1, ROWS):
+		var fy3 := GRID_ORIGIN.y + float(row) * CELL_SIZE.y
+		var d := float(row) / float(ROWS - 1)
+		draw_rect(Rect2(8, fy3, 464, CELL_SIZE.y), Color(0.0, 0.0, 0.02, 0.08 + 0.10 * d))
+
+	# Depth tags running up the spine.
+	_draw_vlabel("SURFACE", Vector2(3, 96), Color(0.58, 0.72, 0.8, 0.6), 6)
+	_draw_vlabel("SUBLEVEL 1", Vector2(3, 154), Color(0.5, 0.62, 0.72, 0.55), 6)
+	_draw_vlabel("SUBLEVEL 2", Vector2(3, 212), Color(0.5, 0.62, 0.72, 0.55), 6)
+
+
+func _draw_vlabel(text: String, pos: Vector2, color: Color, size := 6) -> void:
+	draw_set_transform(pos, -PI / 2.0, Vector2.ONE)
+	draw_string(ThemeDB.fallback_font, Vector2.ZERO, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_loadout_readout() -> void:
