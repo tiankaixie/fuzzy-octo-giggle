@@ -884,6 +884,7 @@ func _draw_overlay() -> void:
 		return
 	if siege_active and siege_prep:
 		_draw_prep_banner()  # countdown over the normal build overlay
+	_draw_built_markers()
 	if not build_mode:
 		var pulse := 0.55 + sin(ambience_time * 2.2) * 0.18
 		_label_on(overlay, "[TAB] DESIGN BUNKER", Vector2(345, 235), Color(0.48, 0.72, 0.76, pulse), 7)
@@ -923,6 +924,26 @@ func _draw_overlay() -> void:
 	_label_on(overlay, "¤ " + str(salvage), Vector2(427, 253), Color("e3b669"), 7)
 	if ambience_time < status_until:
 		_label_on(overlay, status_text, Vector2(317, 237), Color("eab06c"), 6)
+
+
+func _draw_built_markers() -> void:
+	# The cutaway art supplies the room interiors, so built slots get a compact
+	# glowing nameplate (room + level) for build/upgrade feedback.
+	for row in range(ROWS):
+		for col in range(COLS):
+			var type := get_room(Vector2i(col, row))
+			if type == "" or type == "airlock":
+				continue
+			var def: RoomDefinition = ContentRegistryClass.room(type)
+			if def == null:
+				continue
+			var pos := GRID_ORIGIN + Vector2(col, row) * CELL_SIZE
+			var c: Color = def.accent_color
+			var label := def.short_name + " " + str(get_room_level(Vector2i(col, row)))
+			var w := float(label.length()) * 4.2 + 8.0
+			overlay.draw_rect(Rect2(pos.x + 3, pos.y + 4, w, 10), Color(0.03, 0.05, 0.09, 0.72))
+			overlay.draw_rect(Rect2(pos.x + 3, pos.y + 4, 2, 10), c)
+			_label_on(overlay, label, pos + Vector2(7, 12), Color(c, 0.95), 6)
 
 
 func _draw_empty_cell(cell_pos: Vector2, col: int, row: int) -> void:
