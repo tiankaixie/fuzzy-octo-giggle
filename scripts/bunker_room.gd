@@ -123,69 +123,96 @@ func _draw_rest(accent: Color) -> void:
 
 
 func _draw_commons(accent: Color) -> void:
-	# Communal table, radio and hanging warm light.
-	draw_rect(Rect2(20, 9, 2, 17), Color("634852"))
-	draw_colored_polygon(PackedVector2Array([Vector2(14, 25), Vector2(29, 25), Vector2(26, 20), Vector2(17, 20)]), accent)
-	_glow(Vector2(21, 25), accent, 13)
-	draw_rect(Rect2(12, 39, 46, 4), Color("754951"))
-	draw_rect(Rect2(16, 43, 3, 9), Color("4f3844"))
-	draw_rect(Rect2(51, 43, 3, 9), Color("4f3844"))
-	draw_rect(Rect2(41, 29, 17, 10), Color("30374b"))
-	draw_rect(Rect2(43, 31, 9, 3), Color("11182a"))
-	draw_rect(Rect2(44, 32, 5 + int(sin(room_time * 2.0) * 2.0), 1), accent)
+	# Communal table with a hanging warm lamp, a radio and a mug.
+	draw_rect(Rect2(20, 9, 2, 16), Color("4a363f"))
+	draw_colored_polygon(PackedVector2Array([Vector2(14, 25), Vector2(29, 25), Vector2(26, 19), Vector2(17, 19)]), Color("d9b06a"))
+	draw_rect(Rect2(16, 24, 11, 1), Color("ffd98a"))
+	_glow(Vector2(21, 26), Color("ffcf7a"), 14)
+	draw_rect(Rect2(12, 38, 46, 2), Color("8a5860"))
+	draw_rect(Rect2(12, 40, 46, 4), Color("5e3a44"))
+	draw_rect(Rect2(16, 44, 3, 8), Color("3c2832"))
+	draw_rect(Rect2(51, 44, 3, 8), Color("3c2832"))
+	draw_rect(Rect2(24, 35, 4, 4), Color("9a8f86"))
+	draw_rect(Rect2(28, 36, 1, 2), Color("9a8f86"))
+	draw_rect(Rect2(41, 28, 17, 11), Color("2a3145"))
+	draw_rect(Rect2(41, 28, 17, 1), Color("3e465e"))
+	draw_rect(Rect2(43, 30, 9, 4), Color("0c1426"))
+	draw_rect(Rect2(44, 31, 5 + int(sin(room_time * 2.0) * 2.0), 2), Color(accent, 0.9))
 	draw_circle(Vector2(55, 35), 2, Color("d39264"))
+	draw_circle(Vector2(55, 35), 1, Color("f0c79a"))
 	_label("COMMON", Vector2(6, 17), accent, 6)
 
 
 func _draw_grow(accent: Color) -> void:
-	# Hydroponic trays visually repeat when rooms are expanded.
+	# Hydroponic trays under glowing grow lights, with a water glint.
 	for lx in [10, 36]:
+		var bloom := Color("ff9de0")
+		bloom.a = 0.12
+		draw_rect(Rect2(lx - 2, 9, 25, 9), bloom)
 		draw_rect(Rect2(lx, 13, 21, 2), Color("ff9de0"))
-		var bloom := accent
-		bloom.a = 0.09
-		draw_rect(Rect2(lx - 2, 10, 25, 8), bloom)
+		draw_rect(Rect2(lx, 13, 21, 1), Color("ffd0f0"))
 	for bx in [8, 31]:
-		draw_rect(Rect2(bx, 42, 21, 7), Color("41455b"))
-		draw_rect(Rect2(bx + 2, 40, 17, 3), Color("734f76"))
+		draw_rect(Rect2(bx, 42, 21, 7), Color("363a4e"))
+		draw_rect(Rect2(bx, 42, 21, 1), Color("4a4f66"))
+		draw_rect(Rect2(bx + 2, 40, 17, 3), Color("5f4368"))
+		draw_rect(Rect2(bx + 2, 40, 17, 1), Color("8a6a9a"))
 		for px in [bx + 5, bx + 11, bx + 17]:
-			draw_rect(Rect2(px, 29, 2, 12), Color("45926e"))
+			draw_rect(Rect2(px, 29, 2, 12), Color("3c8a64"))
 			draw_rect(Rect2(px - 3, 31, 4, 3), Color("68b973"))
 			draw_rect(Rect2(px + 1, 27, 4, 3), Color("82c77a"))
+			draw_rect(Rect2(px, 27, 1, 2), Color("a8e28e"))
 	draw_rect(Rect2(57, 23, 6, 24), Color("286a71"))
+	draw_rect(Rect2(57, 23, 6, 1), Color("3f8a90"))
 	draw_rect(Rect2(59, 26, 2, 2), Color("75e3cd"))
 	_label("GROW", Vector2(6, 23), accent, 6)
 
 
 func _draw_workshop(accent: Color) -> void:
-	# Pegboard, tools, bench and a cybernetic arm.
-	draw_rect(Rect2(7, 14, 54, 21), Color("25223a"))
+	# Pegboard with tools, a diagnostic screen, a workbench and a cyber arm.
+	draw_rect(Rect2(7, 14, 54, 21), Color("221f34"))
+	draw_rect(Rect2(7, 14, 54, 1), Color("332e48"))
 	for y in range(18, 33, 6):
-		for x in range(11, 59, 7):
-			draw_rect(Rect2(x, y, 1, 1), Color("615270"))
+		for x in range(11, 42, 7):
+			draw_rect(Rect2(x, y, 1, 1), Color("564a66"))
 	draw_rect(Rect2(16, 19, 2, 13), Color("c47a6d"))
-	draw_rect(Rect2(14, 19, 6, 3), Color("764b5c"))
+	draw_rect(Rect2(14, 19, 6, 3), Color("8a5867"))
 	draw_rect(Rect2(32, 18, 2, 14), Color("66a5a0"))
 	draw_circle(Vector2(33, 18), 3, Color("46586c"))
-	draw_rect(Rect2(7, 41, 54, 5), Color("65404e"))
-	draw_rect(Rect2(10, 46, 3, 6), Color("48343f"))
-	draw_rect(Rect2(56, 46, 3, 6), Color("48343f"))
+	draw_circle(Vector2(33, 18), 1.5, Color("0c1426"))
+	draw_rect(Rect2(44, 17, 13, 11), Color("12202e"))
+	draw_rect(Rect2(45, 18, 11, 9), Color("173b3a"))
+	draw_rect(Rect2(46, 20, 9, 1), Color("59e7d7"))
+	draw_rect(Rect2(46, 23, 6, 1), Color("3fae9e"))
+	draw_rect(Rect2(7, 40, 54, 2), Color("8a5560"))
+	draw_rect(Rect2(7, 42, 54, 5), Color("5e3a44"))
+	draw_rect(Rect2(10, 47, 3, 5), Color("3c2832"))
+	draw_rect(Rect2(56, 47, 3, 5), Color("3c2832"))
 	draw_rect(Rect2(29, 37, 19, 3), Color("a9a7ab"))
+	draw_rect(Rect2(29, 37, 19, 1), Color("d2d0d4"))
 	draw_rect(Rect2(46, 35, 8, 5), Color("e78762"))
 	draw_rect(Rect2(31, 36, 2, 2), Color("59e7d7"))
 	_label("RIG", Vector2(45, 12), accent, 6)
 
 
 func _draw_power(accent: Color) -> void:
-	# Quiet self-sufficient micro-reactor, not a survival countdown.
-	draw_rect(Rect2(9, 16, 50, 34), Color("1c3040"))
-	draw_rect(Rect2(14, 20, 20, 25), Color("284959"))
+	# Self-sufficient micro-reactor with a pulsing core and conduit panel.
+	draw_rect(Rect2(9, 16, 50, 34), Color("16293a"))
+	draw_rect(Rect2(9, 16, 50, 1), Color("23425a"))
+	draw_rect(Rect2(14, 20, 20, 25), Color("21404f"))
+	draw_rect(Rect2(14, 20, 20, 1), Color("335a6e"))
 	for i in range(4):
 		var y := 24 + i * 5
 		draw_rect(Rect2(17, y, 14, 2), Color(accent, 0.45 + i * 0.08))
-	draw_circle(Vector2(46, 32), 10, Color("152937"))
-	draw_circle(Vector2(46, 32), 6, Color(accent, 0.18))
-	draw_circle(Vector2(46, 32), 3, accent)
+		draw_rect(Rect2(17, y, 14, 1), Color(accent, 0.85))
+	var pulse := 0.5 + sin(room_time * 2.2) * 0.5
+	for r in range(4, 0, -1):
+		draw_circle(Vector2(46, 32), 8.0 + r * 2.0, Color(accent, 0.05 * pulse))
+	draw_circle(Vector2(46, 32), 10, Color("12222e"))
+	draw_circle(Vector2(46, 32), 6, Color(accent, 0.25))
+	draw_circle(Vector2(46, 32), 3.0 + pulse * 1.5, accent)
+	draw_circle(Vector2(46, 32), 1.5, Color("ffffff"))
 	var meter := 5 + int((sin(room_time * 1.4) + 1.0) * 3.0)
+	draw_rect(Rect2(42, 47, 12, 2), Color("0c1622"))
 	draw_rect(Rect2(42, 47, meter, 2), accent)
 	_label("POWER", Vector2(7, 13), accent, 6)
 
