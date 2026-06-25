@@ -6,8 +6,8 @@ const CharacterFramesClass := preload("res://scripts/art/character_frames.gd")
 enum ViewMode { SIDE, TOP_DOWN, BEAT_EM_UP }
 
 # Warped City gunner (ansimuz, CC0). 71x67 frames, scaled to game size.
-const SPRITE_OFFSET := Vector2(0, -33)
-const SPRITE_SCALE := 0.62
+const SPRITE_OFFSET := Vector2(0, -122)
+const SPRITE_SCALE := 0.165
 
 var view_mode := ViewMode.SIDE
 var speed := 66.0
@@ -45,7 +45,7 @@ func _ready() -> void:
 
 	if view_mode != ViewMode.TOP_DOWN:
 		sprite = AnimatedSprite2D.new()
-		sprite.sprite_frames = CharacterFramesClass.get_warped_player()
+		sprite.sprite_frames = CharacterFramesClass.get_sheet_player()
 		sprite.centered = true
 		sprite.offset = SPRITE_OFFSET
 		sprite.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)

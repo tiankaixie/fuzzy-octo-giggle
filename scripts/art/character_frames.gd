@@ -67,6 +67,35 @@ static func get_warped_player() -> SpriteFrames:
 	return sf
 
 
+# User-authored sheet operative: one keyed pose per state (210x244, foot-anchored).
+const SHEET_PLAYER_DIR := "res://assets/bunker/chars/player/"
+const SHEET_ANIMS := {
+	"idle": ["idle", 6.0, true],
+	"run": ["run", 8.0, true],
+	"shoot": ["shoot", 14.0, false],
+	"jump": ["jump", 10.0, false],
+	"hurt": ["idle", 9.0, false],
+}
+static var _sheet_player: SpriteFrames
+
+
+static func get_sheet_player() -> SpriteFrames:
+	if _sheet_player:
+		return _sheet_player
+	var sf := SpriteFrames.new()
+	sf.remove_animation("default")
+	for anim in SHEET_ANIMS:
+		var spec: Array = SHEET_ANIMS[anim]
+		sf.add_animation(anim)
+		sf.set_animation_speed(anim, spec[1])
+		sf.set_animation_loop(anim, spec[2])
+		var path: String = SHEET_PLAYER_DIR + str(spec[0]) + ".png"
+		if ResourceLoader.exists(path):
+			sf.add_frame(anim, load(path))
+	_sheet_player = sf
+	return sf
+
+
 static func _wc_frame_paths(dir_path: String) -> Array:
 	var out: Array = []
 	var dir := DirAccess.open(dir_path)
