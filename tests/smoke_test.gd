@@ -19,6 +19,7 @@ func _run() -> void:
 	var packed: PackedScene = load("res://scenes/game.tscn")
 	var game := packed.instantiate()
 	root.add_child(game)
+	game.auto_siege = false  # Keep the expedition loop deterministic; siege tested explicitly below.
 	await process_frame
 	await process_frame
 	_assert(game.current_world.name == "Bunker", "Game starts in the bunker")
@@ -30,6 +31,7 @@ func _run() -> void:
 	_assert(game.current_world.place_room(Vector2i(3, 2), "grow", false), "Player can place a room")
 	_assert(game.current_world.place_room(Vector2i(4, 2), "grow", false), "Player can expand a room horizontally")
 	_assert(game.current_world.rooms_are_merged(Vector2i(3, 2), Vector2i(4, 2)), "Adjacent matching rooms merge")
+	_assert(game.current_world.compute_loadout().hp_regen > 0.0, "Built rooms produce a combat loadout")
 	_assert(game.current_world.remove_room(Vector2i(4, 2), false), "Player can salvage a room")
 	_assert(not game.current_world.remove_room(Vector2i(5, 0), false), "Structural airlock cannot be removed")
 	game.current_world.remove_room(Vector2i(3, 2), false)
@@ -168,6 +170,37 @@ func _run() -> void:
 	_assert(game.current_world.get_room_level(build_cell) == 2, "Room upgrade increases its persistent level")
 	_assert(game.salvage == balance_before_upgrade - grow_definition.upgrade_cost, "Upgrade consumes configured salvage cost")
 	game.current_world._reset_layout()
+
+	# Tower-defense siege: rooms arm the gunner, zombies descend on the reactor,
+	# and losing wipes the run (permadeath).
+	game.current_world.start_siege(1)
+	await process_frame
+	_assert(game.current_world.siege_active and game.current_world.siege_prep, "Siege opens with a fortify window")
+	_assert(game.current_world.siege_core != null, "Siege spawns a defensible reactor core")
+	game.current_world.siege_prep_time = 0.0  # skip the fortify countdown
+	await process_frame
+	await process_frame
+	_assert(not game.current_world.siege_prep, "Fortify window ends into live waves")
+	_assert(game.current_world.player is CombatPlayer, "Siege arms the gunner with the combat controller")
+	await create_timer(2.0).timeout
+	_assert(get_nodes_in_group("enemies").size() > 0, "Siege waves spawn descending zombies")
+	# Rooms-as-turrets: a built WORKSHOP auto-fires at a zombie on its floor.
+	var siege_zombies := get_nodes_in_group("enemies")
+	siege_zombies[0].position = Vector2(180, game.current_world._floor_y(2))
+	var shots_before := 0
+	for c in game.current_world.get_children():
+		if c is CombatProjectile:
+			shots_before += 1
+	game.current_world._update_turrets(3.0)
+	var shots_after := 0
+	for c in game.current_world.get_children():
+		if c is CombatProjectile:
+			shots_after += 1
+	_assert(shots_after > shots_before, "A built WORKSHOP auto-fires as a turret during a siege")
+	game.current_world.siege_core.take_damage(99999.0, Vector2.ZERO, 0.0)
+	await create_timer(1.8).timeout
+	_assert(game.salvage == 160, "Losing the siege wipes the run (permadeath reset)")
+	_assert(game.current_world.has_method("start_siege") and not game.current_world.siege_active, "Permadeath drops into a fresh calm bunker")
 
 	Engine.time_scale = 1.0
 	print("SMOKE TEST PASSED: combat → loot → bunker build/upgrade loop is operational")

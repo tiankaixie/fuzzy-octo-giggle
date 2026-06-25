@@ -30,6 +30,16 @@ var strike_time := 0.0
 var sprite: AnimatedSprite2D
 var current_anim := ""
 
+# Siege mode: instead of chasing the player on one lane, the zombie follows a
+# waypoint path down the bunker shaft toward the reactor core, attacking the
+# core (or the player if they block the way).
+var siege := false
+var siege_waypoints: Array = []
+var siege_wp := 0
+var siege_core: Node2D
+var siege_player: Node2D
+var siege_attack_target: Node2D
+
 
 func setup(enemy_definition: EnemyDefinition, victim: Node2D, spawn_position: Vector2) -> void:
 	definition = enemy_definition
@@ -83,7 +93,10 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 	else:
 		_update_ai(delta)
-	position.y = clampf(position.y, 176.0, 221.0)
+	if siege:
+		position.y = clampf(position.y, 40.0, 232.0)
+	else:
+		position.y = clampf(position.y, 176.0, 221.0)
 	position.x = clampf(position.x, 18.0, 462.0)
 	z_index = 20 + int(position.y)
 	_update_anim()
@@ -113,6 +126,9 @@ func _enemy_anim() -> String:
 
 
 func _update_ai(delta: float) -> void:
+	if siege:
+		_siege_ai(delta)
+		return
 	if not is_instance_valid(target):
 		velocity = Vector2.ZERO
 		return
@@ -145,6 +161,60 @@ func _update_ai(delta: float) -> void:
 			return
 		velocity = Vector2(signf(offset.x), signf(offset.y) * minf(0.8, depth_gap / 20.0)) * definition.move_speed
 	move_and_slide()
+
+
+# Walks the waypoint path down the shaft toward the core, attacking the core
+# (or the player if they stand in the way).
+func _siege_ai(delta: float) -> void:
+	if windup > 0.0:
+		windup -= delta
+		velocity = Vector2.ZERO
+		if windup <= 0.0:
+			_siege_strike()
+		return
+	if is_instance_valid(siege_player) and not siege_player.defeated:
+		var pd: Vector2 = siege_player.position - position
+		if absf(pd.x) < 16.0 and absf(pd.y) < 16.0:
+			if absf(pd.x) > 1.0:
+				facing = signf(pd.x)
+			if attack_cooldown <= 0.0:
+				siege_attack_target = siege_player
+				_begin_attack(0.32)
+			else:
+				velocity = Vector2.ZERO
+			return
+	if siege_wp < siege_waypoints.size():
+		var wp: Vector2 = siege_waypoints[siege_wp]
+		var to_wp: Vector2 = wp - position
+		if to_wp.length() < 5.0:
+			siege_wp += 1
+			return
+		if absf(to_wp.x) > 1.0:
+			facing = signf(to_wp.x)
+		velocity = to_wp.normalized() * definition.move_speed
+		move_and_slide()
+		return
+	if is_instance_valid(siege_core):
+		var cd: Vector2 = siege_core.position - position
+		if absf(cd.x) > 1.0:
+			facing = signf(cd.x)
+		if cd.length() > 16.0:
+			velocity = cd.normalized() * definition.move_speed
+			move_and_slide()
+		elif attack_cooldown <= 0.0:
+			siege_attack_target = siege_core
+			_begin_attack(0.34)
+		else:
+			velocity = Vector2.ZERO
+	else:
+		velocity = Vector2.ZERO
+
+
+func _siege_strike() -> void:
+	strike_time = 0.2
+	if is_instance_valid(siege_attack_target) and siege_attack_target.has_method("take_damage"):
+		siege_attack_target.take_damage(definition.damage, position, definition.knockback_force)
+		sfx_requested.emit("shot" if definition.archetype == EnemyDefinition.Archetype.RANGED else "hit")
 
 
 func _begin_attack(duration: float) -> void:

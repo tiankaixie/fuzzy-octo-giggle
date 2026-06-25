@@ -13,6 +13,8 @@ var room_index := 0
 var room_count := 3
 var hp := 100.0
 var energy := 76.0
+var hp_max := 100.0
+var en_max := 100.0
 var combo_count := 0
 var targets := 0
 var salvage := 0
@@ -46,12 +48,14 @@ func set_room(index: int) -> void:
 		canvas.queue_redraw()
 
 
-func set_stats(health: float, current_energy: float, combo: int, target_count := 0, loot := 0) -> void:
+func set_stats(health: float, current_energy: float, combo: int, target_count := 0, loot := 0, health_max := 100.0, energy_max := 100.0) -> void:
 	hp = health
 	energy = current_energy
 	combo_count = combo
 	targets = target_count
 	salvage = loot
+	hp_max = maxf(1.0, health_max)
+	en_max = maxf(1.0, energy_max)
 
 
 func show_banner(text: String, duration := 1.2) -> void:
@@ -185,9 +189,9 @@ func _draw_status_bars(accent: Color) -> void:
 	_label("LV.07", Vector2(43, 237), accent.lightened(0.3), 6)
 	_label("OPERATIVE", Vector2(78, 237), Color("8b8a98"), 6)
 	_heart(Vector2(42, 244), Color("e6485f"))
-	_bar(Rect2(50, 242, 74, 7), hp / 100.0, Color("e6485f"), str(roundi(hp)))
+	_bar(Rect2(50, 242, 74, 7), hp / hp_max, Color("e6485f"), str(roundi(hp)))
 	_bolt(Vector2(43, 254), Color("4fc7d1"))
-	_bar(Rect2(50, 253, 74, 7), energy / 100.0, Color("4fc7d1"), str(roundi(energy)))
+	_bar(Rect2(50, 253, 74, 7), energy / en_max, Color("4fc7d1"), str(roundi(energy)))
 
 
 func _heart(c: Vector2, col: Color) -> void:

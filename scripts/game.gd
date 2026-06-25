@@ -15,6 +15,15 @@ var last_loot := 0
 # Persistent time-of-day clock shared across worlds, so deploying from the
 # bunker at night drops you into a night-time stage.
 var world_time := 0.0
+# Combat loadout from the bunker's rooms, captured on deploy and applied in the dungeon.
+var loadout := {}
+# Tower-defense siege: a returning expedition draws a zombie siege on the bunker.
+var auto_siege := true
+var pending_siege := false
+var siege_tier := 1
+# Greed = timer: looting raises heat; when it crosses the tier threshold on a
+# return home, the dead come for the bunker.
+var heat := 0.0
 
 
 func _process(delta: float) -> void:
@@ -73,18 +82,25 @@ func _build_transition_layer() -> void:
 
 func _show_world(target: String) -> void:
 	if is_instance_valid(current_world):
+		if current_world.has_method("compute_loadout"):
+			loadout = current_world.compute_loadout()
 		current_world.queue_free()
 	match target:
 		"bunker":
 			current_world = BUNKER_SCENE.instantiate()
 			current_world.salvage = salvage
 			current_world.last_loot = last_loot
+			current_world.start_in_siege = pending_siege
+			current_world.siege_tier = siege_tier
+			pending_siege = false
 		"map": current_world = EXPEDITION_MAP_SCENE.instantiate()
 		_:
 			current_world = DUNGEON_SCENE.instantiate()
 			current_world.stage_id = selected_stage_id
 	if "world_time" in current_world:
 		current_world.world_time = world_time
+	if "loadout" in current_world:
+		current_world.loadout = loadout
 	add_child(current_world)
 	move_child(current_world, 0)
 	current_world.transition_requested.connect(_on_transition_requested)
@@ -94,6 +110,8 @@ func _show_world(target: String) -> void:
 		current_world.stage_completed.connect(_on_stage_completed)
 	if current_world.has_signal("salvage_changed"):
 		current_world.salvage_changed.connect(_on_salvage_changed)
+	if current_world.has_signal("siege_resolved"):
+		current_world.siege_resolved.connect(_on_siege_resolved)
 	if target == "bunker":
 		last_loot = 0
 
@@ -107,11 +125,34 @@ func _on_stage_completed(completed_stage_id: String, loot: int) -> void:
 	selected_stage_id = completed_stage_id
 	last_loot = loot
 	salvage += loot
+	if auto_siege:
+		heat += float(loot)
+		if heat >= 80.0 * float(siege_tier):
+			pending_siege = true
+			heat = 0.0
 	_on_transition_requested("bunker")
 
 
 func _on_salvage_changed(value: int) -> void:
 	salvage = value
+
+
+# Permadeath: wipe the saved bunker layout and reset the run economy so the next
+# bunker loads fresh from defaults.
+func reset_run() -> void:
+	if FileAccess.file_exists("user://bunker_layout.json"):
+		DirAccess.remove_absolute("user://bunker_layout.json")
+	salvage = 160
+	siege_tier = 1
+	pending_siege = false
+	last_loot = 0
+	heat = 0.0
+
+
+# Survived sieges deepen the threat for the next one.
+func _on_siege_resolved(won: bool) -> void:
+	if won:
+		siege_tier += 1
 
 
 func _on_transition_requested(target: String) -> void:
@@ -124,6 +165,7 @@ func _on_transition_requested(target: String) -> void:
 	match target:
 		"map": transition_caption.text = "UPLINK // CHOOSE A ROUTE"
 		"dungeon": transition_caption.text = "DEPLOYING // " + selected_stage_id.to_upper()
+		"overrun": transition_caption.text = "BUNKER OVERRUN // RUN RESET"
 		_: transition_caption.text = "DESCENDING // HOME"
 	transition_caption.modulate.a = 0.0
 
@@ -133,6 +175,9 @@ func _on_transition_requested(target: String) -> void:
 	await fade_out.finished
 	await get_tree().create_timer(0.28).timeout
 
+	if target == "overrun":
+		reset_run()
+		target = "bunker"
 	_show_world(target)
 	var fade_in := create_tween().set_parallel(true)
 	fade_in.tween_property(transition_rect, "color:a", 0.0, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)

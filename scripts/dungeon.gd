@@ -25,6 +25,7 @@ var wc_buildings: Texture2D
 var wc_near: Texture2D
 var wc_props := {}
 var world_time := 0.0
+var loadout := {}
 var player: CombatPlayer
 var foreground: Node2D
 var transition_layer: CanvasLayer
@@ -71,6 +72,7 @@ func _ready() -> void:
 	player.sfx_requested.connect(_play_sfx)
 	player.impact_requested.connect(_on_impact)
 	player.died.connect(_on_player_died)
+	player.apply_loadout(loadout)
 
 	combat_fx = CombatFXClass.new()
 	add_child(combat_fx)
@@ -133,7 +135,7 @@ func _process(delta: float) -> void:
 	player.position.x = clampf(player.position.x, 8.0, 472.0)
 	player.z_index = 20 + int(player.position.y)
 
-	battle_hud.set_stats(player.health, player.energy, player.combo_hits, remaining_enemies, total_loot)
+	battle_hud.set_stats(player.health, player.energy, player.combo_hits, remaining_enemies, total_loot, player.max_health, player.max_energy)
 	if not room_transitioning and not transition_sent and result_state == "":
 		if player.position.x >= 468.0:
 			if not cleared_rooms.get(room_index, false):
@@ -240,7 +242,7 @@ func _on_player_shot_hit(pos: Vector2, amount: int, _tint: Color) -> void:
 
 
 func _on_enemy_defeated(_enemy: CombatEnemy, loot: int) -> void:
-	total_loot += loot
+	total_loot += int(round(loot * float(loadout.get("loot_mult", 1.0))))
 	remaining_enemies = maxi(0, remaining_enemies - 1)
 	shake_strength = maxf(shake_strength, 7.0)
 	if is_instance_valid(combat_fx) and is_instance_valid(_enemy) and _enemy.definition:
