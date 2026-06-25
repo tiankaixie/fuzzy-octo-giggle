@@ -8,6 +8,11 @@ const RoomClass := preload("res://scripts/bunker_room.gd")
 const ContentRegistryClass := preload("res://scripts/data/content_registry.gd")
 const CinematicOverlayClass := preload("res://scripts/cinematic_overlay.gd")
 const PostProcessClass := preload("res://scripts/post_process.gd")
+const CombatPlayerClass := preload("res://scripts/combat/combat_player.gd")
+const CombatEnemyClass := preload("res://scripts/combat/combat_enemy.gd")
+const CombatProjectileClass := preload("res://scripts/combat/combat_projectile.gd")
+const CombatFXClass := preload("res://scripts/combat/combat_fx.gd")
+const SiegeCoreClass := preload("res://scripts/combat/siege_core.gd")
 
 const COLS := 6
 const ROWS := 3
@@ -42,6 +47,21 @@ var last_loot := 0
 var city_texture: Texture2D
 var wc_skyline: Texture2D
 var world_time := 0.0
+var loadout := {}
+
+# --- Siege (tower-defense) state ---
+var start_in_siege := false
+var siege_active := false
+var siege_ended := false
+var siege_tier := 1
+var siege_core: Node2D
+var siege_fx: Node2D
+var siege_wave := 0
+var siege_total_waves := 3
+var siege_to_spawn := 0
+var siege_alive := 0
+var siege_spawn_timer := 0.0
+var siege_lull := 0.0
 
 
 func _ready() -> void:
@@ -77,6 +97,9 @@ func _ready() -> void:
 	if last_loot > 0:
 		_show_status("EXPEDITION SALVAGE // +" + str(last_loot))
 
+	if start_in_siege:
+		call_deferred("start_siege", siege_tier)
+
 
 func _process(delta: float) -> void:
 	ambience_time += delta
@@ -95,7 +118,9 @@ func _process(delta: float) -> void:
 		floor_input_latched = true
 		_switch_floor(signi(roundi(floor_input)))
 
-	if current_floor == 0 and player.position.x > 459.0 and not transition_sent:
+	if siege_active:
+		_siege_process(delta)
+	elif current_floor == 0 and player.position.x > 459.0 and not transition_sent:
 		transition_sent = true
 		player.movement_enabled = false
 		transition_requested.emit("map")
@@ -106,6 +131,8 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if siege_active:
+		return  # No build/blueprint input during a live siege.
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_TAB:
 			_set_build_mode(not build_mode)
@@ -370,6 +397,221 @@ func _show_status(text: String) -> void:
 	status_until = ambience_time + 1.6
 
 
+# ----------------------------------------------------------------------------
+# Siege mode (tower defense): zombies breach the surface entrance and grind down
+# the shaft toward the reactor core. The built rooms arm the gunner via the
+# loadout; lose the core or the gunner and the run is wiped (permadeath).
+# ----------------------------------------------------------------------------
+func start_siege(tier := 1) -> void:
+	if siege_active:
+		return
+	siege_active = true
+	siege_ended = false
+	siege_tier = maxi(1, tier)
+	build_mode = false
+	transition_sent = true  # block the airlock exit while the siege is live
+	current_floor = 0
+	# Swap the calm wanderer for the combat-capable gunner, armed by the rooms.
+	if is_instance_valid(player):
+		player.queue_free()
+	var cp: CombatPlayer = CombatPlayerClass.new()
+	cp.setup(CyberPlayer.ViewMode.SIDE)
+	cp.position = Vector2(240, _floor_y(0))
+	add_child(cp)
+	cp.apply_loadout(compute_loadout())
+	cp.shoot_requested.connect(_on_siege_player_shot)
+	cp.died.connect(_on_siege_player_died)
+	player = cp
+	siege_fx = CombatFXClass.new()
+	add_child(siege_fx)
+	var core: Node2D = SiegeCoreClass.new()
+	core.position = Vector2(240, _floor_y(2))
+	core.z_index = 6
+	add_child(core)
+	core.setup(170.0 + 40.0 * float(siege_tier))
+	core.destroyed.connect(_on_siege_core_destroyed)
+	siege_core = core
+	siege_wave = 0
+	siege_total_waves = 3
+	siege_alive = 0
+	siege_to_spawn = 0
+	siege_lull = 1.4
+	_show_status("SIEGE // DEFEND THE REACTOR")
+
+
+func _begin_next_wave() -> void:
+	siege_wave += 1
+	if siege_wave > siege_total_waves:
+		_win_siege()
+		return
+	siege_to_spawn = 2 + siege_wave + siege_tier
+	siege_spawn_timer = 0.0
+	_show_status("WAVE %d / %d" % [siege_wave, siege_total_waves])
+
+
+func _siege_process(delta: float) -> void:
+	if siege_ended:
+		return
+	if siege_to_spawn > 0:
+		siege_spawn_timer -= delta
+		if siege_spawn_timer <= 0.0:
+			_spawn_siege_zombie()
+			siege_to_spawn -= 1
+			siege_spawn_timer = 0.9
+	elif siege_alive <= 0:
+		siege_lull -= delta
+		if siege_lull <= 0.0:
+			siege_lull = 1.6
+			_begin_next_wave()
+
+
+func _spawn_siege_zombie() -> void:
+	var ids := ["melee"]
+	if siege_wave >= 2:
+		ids.append("ranged")
+	if siege_wave >= 3:
+		ids.append("elite")
+	var id: String = ids[siege_alive % ids.size()]
+	var base: EnemyDefinition = ContentRegistryClass.enemy(id)
+	if base == null:
+		return
+	# Reskin the licensed enemy art to a sickly-green zombie tint (no new assets).
+	var def: EnemyDefinition = base.duplicate()
+	def.body_color = Color(0.42, 0.72, 0.38)
+	def.glow_color = Color(0.55, 0.95, 0.45)
+	var z: CombatEnemy = CombatEnemyClass.new()
+	z.setup(def, siege_core, Vector2(456, _floor_y(0)))
+	z.siege = true
+	z.siege_core = siege_core
+	z.siege_player = player
+	z.siege_waypoints = [
+		Vector2(34, _floor_y(0)), Vector2(34, _floor_y(1)),
+		Vector2(34, _floor_y(2)), Vector2(214, _floor_y(2)),
+	]
+	z.defeated.connect(_on_siege_zombie_defeated)
+	z.projectile_requested.connect(_on_siege_enemy_projectile)
+	add_child(z)
+	siege_alive += 1
+
+
+func _on_siege_player_shot(origin: Vector2, direction: Vector2, damage: float, knockback: float) -> void:
+	var shot: CombatProjectile = CombatProjectileClass.new()
+	shot.setup(origin, direction, null, damage, knockback, Color(1.0, 0.86, 0.5), true)
+	shot.struck.connect(_on_siege_shot_hit)
+	add_child(shot)
+
+
+func _on_siege_shot_hit(pos: Vector2, amount: int, _tint: Color) -> void:
+	if is_instance_valid(siege_fx):
+		siege_fx.hit(pos, amount, Color(1.0, 0.95, 0.6))
+
+
+func _on_siege_enemy_projectile(origin: Vector2, direction: Vector2, damage: float, knockback: float, color: Color) -> void:
+	var p: CombatProjectile = CombatProjectileClass.new()
+	p.setup(origin, direction, player, damage, knockback, color)
+	add_child(p)
+
+
+func _on_siege_zombie_defeated(enemy, _loot: int) -> void:
+	siege_alive = maxi(0, siege_alive - 1)
+	if is_instance_valid(siege_fx) and is_instance_valid(enemy) and enemy.definition:
+		siege_fx.burst(enemy.position + Vector2(0, -16), enemy.definition.glow_color)
+
+
+func _on_siege_core_destroyed() -> void:
+	_lose_siege()
+
+
+func _on_siege_player_died() -> void:
+	_lose_siege()
+
+
+func _win_siege() -> void:
+	if siege_ended:
+		return
+	siege_ended = true
+	siege_active = false
+	var reward := 35 + 25 * siege_tier
+	salvage += reward
+	salvage_changed.emit(salvage)
+	_end_siege_cleanup()
+	_show_status("BUNKER HELD // +%d SALVAGE" % reward)
+
+
+func _lose_siege() -> void:
+	if siege_ended:
+		return
+	siege_ended = true
+	siege_active = false
+	_show_status("BUNKER OVERRUN")
+	transition_requested.emit("overrun")
+
+
+func _end_siege_cleanup() -> void:
+	for z in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(z):
+			z.queue_free()
+	for child in get_children():
+		if child is CombatProjectile:
+			child.queue_free()
+	if is_instance_valid(siege_core):
+		siege_core.queue_free()
+	siege_core = null
+	if is_instance_valid(siege_fx):
+		siege_fx.queue_free()
+	siege_fx = null
+	if is_instance_valid(player):
+		player.queue_free()
+	var np: CyberPlayer = PlayerClass.new()
+	np.setup(CyberPlayer.ViewMode.SIDE)
+	np.position = Vector2(74, _floor_y(current_floor))
+	add_child(np)
+	player = np
+	transition_sent = false
+	start_in_siege = false
+
+
+func _draw_siege_hud() -> void:
+	# Vertical focus: dim floors with no active threat that aren't the player's.
+	for f in range(ROWS):
+		var has_zombie := false
+		for z in get_tree().get_nodes_in_group("enemies"):
+			if is_instance_valid(z) and absf(z.position.y - _floor_y(f)) < 30.0:
+				has_zombie = true
+				break
+		if not has_zombie and f != current_floor:
+			overlay.draw_rect(Rect2(0, _floor_y(f) - 46, 480, 60), Color(0.02, 0.02, 0.06, 0.4))
+	# Top siege banner.
+	var pulse := 0.6 + sin(ambience_time * 6.0) * 0.4
+	overlay.draw_rect(Rect2(150, 6, 184, 16), Color(0.08, 0.02, 0.04, 0.72))
+	overlay.draw_rect(Rect2(150, 6, 3, 16), Color(1.0, 0.3, 0.3, pulse))
+	_label_on(overlay, "SIEGE  //  WAVE %d / %d" % [siege_wave, siege_total_waves], Vector2(160, 18), Color("ff8a7a"), 8)
+	if is_instance_valid(siege_core):
+		_label_on(overlay, "REACTOR", Vector2(214, _floor_y(2) - 54), Color("ffce5a"), 6)
+	# Player vitals (bottom-left) and threat counter.
+	var hp := 1.0
+	var hpmax := 1.0
+	var en := 0.0
+	var enmax := 1.0
+	if is_instance_valid(player) and "health" in player:
+		hp = player.health
+		hpmax = maxf(1.0, player.max_health)
+		en = player.energy
+		enmax = maxf(1.0, player.max_energy)
+	_siege_bar(Rect2(14, 246, 92, 6), hp / hpmax, Color("e6485f"), "HP")
+	_siege_bar(Rect2(14, 255, 92, 6), en / enmax, Color("4fc7d1"), "EN")
+	_label_on(overlay, "THREAT " + str(siege_alive + siege_to_spawn), Vector2(360, 254), Color("9bd66a"), 7)
+	if ambience_time < status_until:
+		_label_on(overlay, status_text, Vector2(150, 254), Color("ff9a6a"), 7)
+
+
+func _siege_bar(rect: Rect2, ratio: float, color: Color, tag: String) -> void:
+	overlay.draw_rect(rect, Color("0a0d16"))
+	overlay.draw_rect(Rect2(rect.position, Vector2(rect.size.x * clampf(ratio, 0.0, 1.0), rect.size.y)), color)
+	overlay.draw_rect(rect, Color("39435f"), false, 1)
+	_label_on(overlay, tag, rect.position + Vector2(-12, 6), color, 5)
+
+
 func _draw() -> void:
 	# --- Sky above ground, lerping across a slow day/night cycle ---
 	var day := _day_factor()
@@ -553,6 +795,9 @@ func _draw_plate_label(pos: Vector2, text: String, color: Color) -> void:
 
 
 func _draw_overlay() -> void:
+	if siege_active:
+		_draw_siege_hud()
+		return
 	if not build_mode:
 		var pulse := 0.55 + sin(ambience_time * 2.2) * 0.18
 		_label_on(overlay, "[TAB] DESIGN BUNKER", Vector2(345, 235), Color(0.48, 0.72, 0.76, pulse), 7)

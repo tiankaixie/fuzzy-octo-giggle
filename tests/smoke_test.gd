@@ -19,6 +19,7 @@ func _run() -> void:
 	var packed: PackedScene = load("res://scenes/game.tscn")
 	var game := packed.instantiate()
 	root.add_child(game)
+	game.auto_siege = false  # Keep the expedition loop deterministic; siege tested explicitly below.
 	await process_frame
 	await process_frame
 	_assert(game.current_world.name == "Bunker", "Game starts in the bunker")
@@ -169,6 +170,21 @@ func _run() -> void:
 	_assert(game.current_world.get_room_level(build_cell) == 2, "Room upgrade increases its persistent level")
 	_assert(game.salvage == balance_before_upgrade - grow_definition.upgrade_cost, "Upgrade consumes configured salvage cost")
 	game.current_world._reset_layout()
+
+	# Tower-defense siege: rooms arm the gunner, zombies descend on the reactor,
+	# and losing wipes the run (permadeath).
+	game.current_world.start_siege(1)
+	await process_frame
+	await process_frame
+	_assert(game.current_world.siege_active, "Bunker can enter a tower-defense siege")
+	_assert(game.current_world.player is CombatPlayer, "Siege arms the gunner with the combat controller")
+	_assert(game.current_world.siege_core != null, "Siege spawns a defensible reactor core")
+	await create_timer(2.0).timeout
+	_assert(get_nodes_in_group("enemies").size() > 0, "Siege waves spawn descending zombies")
+	game.current_world.siege_core.take_damage(99999.0, Vector2.ZERO, 0.0)
+	await create_timer(1.8).timeout
+	_assert(game.salvage == 160, "Losing the siege wipes the run (permadeath reset)")
+	_assert(game.current_world.has_method("start_siege") and not game.current_world.siege_active, "Permadeath drops into a fresh calm bunker")
 
 	Engine.time_scale = 1.0
 	print("SMOKE TEST PASSED: combat → loot → bunker build/upgrade loop is operational")
