@@ -77,3 +77,30 @@ static func _wc_frame_paths(dir_path: String) -> Array:
 			out.append(dir_path + "/" + f)
 	out.sort()
 	return out
+
+
+# User-authored operator (sprite-ai.art, 64x64 transparent): an 8-frame idle
+# cycle under assets/bunker/chars/operator/. Only idle exists, so every state
+# aliases to it (clean look now; richer anims swap in when the user adds them).
+const OP_DIR := "res://assets/bunker/chars/operator/"
+static var _operator: SpriteFrames
+
+
+static func get_operator() -> SpriteFrames:
+	if _operator:
+		return _operator
+	var sf := SpriteFrames.new()
+	sf.remove_animation("default")
+	var frames: Array = []
+	for i in range(8):
+		var p := OP_DIR + "idle_%d.png" % i
+		if ResourceLoader.exists(p):
+			frames.append(load(p))
+	for anim in ["idle", "run", "shoot", "jump", "hurt", "death"]:
+		sf.add_animation(anim)
+		sf.set_animation_speed(anim, 8.0)
+		sf.set_animation_loop(anim, anim == "idle" or anim == "run")
+		for fr in frames:
+			sf.add_frame(anim, fr)
+	_operator = sf
+	return sf
